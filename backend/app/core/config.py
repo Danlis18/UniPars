@@ -19,6 +19,13 @@ def _load_dotenv() -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
+def _origin(value: str) -> str:
+    v = value.strip().strip("\"'").rstrip("/")
+    if v and "://" not in v:
+        v = "https://" + v
+    return v
+
+
 def _int(name: str, default: int) -> int:
     try:
         return int(os.environ.get(name, default))
@@ -61,7 +68,7 @@ def get_settings() -> Settings:
     e = os.environ.get
     return Settings(
         app_mode=e("APP_MODE", "demo"),
-        supabase_url=e("SUPABASE_URL", "").rstrip("/"),
+        supabase_url=e("SUPABASE_URL", "").strip().strip("\"'").rstrip("/"),
         supabase_service_role_key=e("SUPABASE_SERVICE_ROLE_KEY", ""),
         supabase_jwt_secret=e("SUPABASE_JWT_SECRET", ""),
         storage_bucket=e("STORAGE_BUCKET", "attachments"),
@@ -73,5 +80,6 @@ def get_settings() -> Settings:
         max_upload_mb=_int("MAX_UPLOAD_MB", 25),
         file_link_secret=e("FILE_LINK_SECRET", "change-me"),
         news_sync_interval_seconds=_int("NEWS_SYNC_INTERVAL_SECONDS", 600),
-        cors_origins=[o.strip() for o in e("CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()],
+        # Браузер надсилає Origin без «/» у кінці — нормалізуємо, щоб не було помилок CORS
+        cors_origins=[_origin(o) for o in e("CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()],
     )

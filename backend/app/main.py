@@ -38,8 +38,32 @@ for r in (core.router, posts.router, ai.router, admin.router):
 
 
 @app.get("/api/health")
-def health():
-    return {"ok": True}
+def health(deep: bool = False):
+    """deep=1 — перевірка з'єднання з базою та Supabase Auth (без розкриття секретів)."""
+    if not deep:
+        return {"ok": True}
+    s = get_settings()
+    out: dict = {"ok": True, "mode": s.app_mode, "ai_enabled": s.ai_enabled, "cors_origins": s.cors_origins}
+    if s.is_demo:
+        return out
+    from urllib.parse import urlparse
+
+    import httpx
+
+    out["supabase_host"] = urlparse(s.supabase_url).hostname
+    try:
+        out["universities"] = get_store().count("universities")
+        out["database"] = "ok"
+    except Exception as e:  # неправильний URL/ключ або не застосовані міграції
+        out["ok"] = False
+        out["database"] = f"error: {type(e).__name__}: {str(e)[:200]}"
+    try:
+        r = httpx.get(f"{s.supabase_url}/auth/v1/.well-known/jwks.json", timeout=10)
+        out["auth_jwks"] = "ok" if r.status_code == 200 else f"HTTP {r.status_code}"
+    except Exception as e:
+        out["ok"] = False
+        out["auth_jwks"] = f"error: {type(e).__name__}"
+    return out
 
 
 @app.get("/")
