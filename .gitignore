@@ -1,4 +1,9 @@
 node_modules/
+dist/
 .env
-data/db.json
+.env.local
+.venv/
+__pycache__/
+.pytest_cache/
+backend/.demo_uploads/
 .DS_Store
