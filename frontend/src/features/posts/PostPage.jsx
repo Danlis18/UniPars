@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Heart, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { api } from "../../lib/api.js";
@@ -65,7 +65,7 @@ function Comment({ c, post, onAccept }) {
       <Avatar user={c.author} size={34} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 text-sm flex-wrap">
-          <span className="font-semibold">{c.author.display_name}</span>
+          <Link to={`/u/${c.author.id}`} className="font-semibold hover:underline">{c.author.display_name}</Link>
           <span className="text-muted">· {timeAgo(c.created_at)}</span>
           {c.is_accepted && <span className="chip bg-primary text-on-primary"><CheckCircle2 size={12} /> Прийнята відповідь</span>}
           {c.is_hidden && <span className="chip bg-danger/15 text-danger">Приховано</span>}
@@ -136,7 +136,7 @@ export default function PostPage() {
       <PageHeader back title={p.type === "question" ? "Запитання" : p.type === "explanation" ? "Пояснення" : "Матеріал"} />
       <article className="px-4 py-4 border-b border-line">
         <div className="flex gap-3">
-          <Avatar user={p.author} />
+          <Link to={`/u/${p.author.id}`} className="shrink-0 h-fit"><Avatar user={p.author} ring size={46} /></Link>
           <div className="flex-1 min-w-0"><PostHeader post={p} onEdit={() => setEditing(true)} /></div>
         </div>
         {editing ? <EditForm post={p} onDone={() => setEditing(false)} /> : (

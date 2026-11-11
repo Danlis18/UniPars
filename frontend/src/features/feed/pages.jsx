@@ -44,7 +44,9 @@ export function HomePage() {
   const [params] = useSearchParams();
   const tab = params.get("tab") || "for_me";
   const type = params.get("type") || undefined;
-  const empty = tab === "my_subjects"
+  const empty = tab === "following"
+    ? <Empty title="Ви ще ні на кого не підписані">Відкрийте профіль однокурсника й натисніть «Читати» — його роботи з'являться тут.</Empty>
+    : tab === "my_subjects"
     ? <Empty title="Немає дописів з ваших предметів">Підпишіться на предмети в каталозі — їхні матеріали з'являться тут.</Empty>
     : undefined;
   return (
@@ -52,6 +54,7 @@ export function HomePage() {
       <PageHeader>
         <UrlTabs param="tab" defaultValue="for_me" tabs={[
           { value: "for_me", label: t("feed.forMe") },
+          { value: "following", label: "Підписки" },
           { value: "my_subjects", label: t("feed.mySubjects") },
           { value: "university", label: t("feed.university") },
         ]} />

@@ -88,7 +88,7 @@ class PostService:
     # ---------- Стрічка ----------
     def list(self, university_id: str, *, tab: str = "university", type: str | None = None, subject_id: str | None = None,
              topic_id: str | None = None, status: str | None = None, q: str | None = None, kind: str | None = None,
-             course: int | None = None, semester: int | None = None, saved: bool = False, author: str | None = None,
+             course: int | None = None, semester: int | None = None, saved: bool = False, author: str | None = None, author_id: str | None = None,
              sort: str = "new", offset: int = 0, limit: int = 20) -> Row:
         m = self.a.require_member(university_id)
         f = [("university_id", "eq", university_id)]
@@ -106,6 +106,11 @@ class PostService:
             f += [("type", "eq", "question"), ("comment_count", "eq", 0)]
         if author == "me":
             f.append(("author_id", "eq", self.a.user_id))
+        if author_id:
+            f.append(("author_id", "eq", author_id))
+        if tab == "following":
+            followed = [r["following_id"] for r in self.s.select("follows", [("follower_id", "eq", self.a.user_id)])]
+            f.append(("author_id", "in", followed))
         if saved:
             ids = [b["post_id"] for b in self.s.select("bookmarks", [("user_id", "eq", self.a.user_id)])]
             f.append(("id", "in", ids))
@@ -131,6 +136,7 @@ class PostService:
             else:
                 # Прості зрозумілі правила: підписка > спеціальність > свіжість > корисність
                 now = datetime.now(timezone.utc)
+                followed_authors = {r["following_id"] for r in self.s.select("follows", [("follower_id", "eq", self.a.user_id)])}
                 def score(p):
                     age_h = (now - datetime.fromisoformat(p["created_at"])).total_seconds() / 3600
                     s = 0.0
@@ -139,6 +145,7 @@ class PostService:
                     s += 10 if p.get("visibility") == "group" else 0
                     s += min(p.get("useful_count", 0), 40) * 0.5
                     s += 8 if p["type"] == "question" and p.get("status") == "open" else 0
+                    s += 20 if p["author_id"] in followed_authors else 0
                     return s - age_h * 0.25
                 posts.sort(key=score, reverse=True)
         elif sort == "popular":

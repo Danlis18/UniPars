@@ -291,8 +291,42 @@ export function buildAgent() {
   shadow.position.y = -0.92;
   disposables.push(shadowTex, shadow.geometry, shadow.material);
 
+  // Додаткові пасма для об'єму (шар над «шапкою»)
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    spike([Math.sin(a) * 0.62, 0.78 + Math.cos(a * 2) * 0.05, Math.cos(a) * 0.55 - 0.1], [-0.35 * Math.cos(a), 0, 0.5 * Math.sin(a)], 0.19, 0.42);
+  }
+
+  // Відблиск на окулярах (рухається при наведенні)
+  const glintMat = new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.0, depthWrite: false });
+  const glint = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.34), glintMat);
+  glint.position.set(-0.5, -0.07, 0.92);
+  glint.rotation.z = 0.5;
+  head.add(glint);
+  disposables.push(glintMat, glint.geometry);
+
+  // Голографічне кільце біля ніг і частинки-«знання», що обертаються навколо агента
+  const halo = new THREE.Mesh(
+    new THREE.TorusGeometry(0.78, 0.018, 12, 96),
+    new THREE.MeshBasicMaterial({ color: TEAL, transparent: true, opacity: 0.55 }),
+  );
+  halo.rotation.x = Math.PI / 2;
+  halo.position.y = -0.9;
+  disposables.push(halo.geometry, halo.material);
+
+  const particles = new THREE.Group();
+  const pGeo = new THREE.SphereGeometry(0.045, 16, 12);
+  const pMats = [new THREE.MeshBasicMaterial({ color: "#2fe0c4" }), new THREE.MeshBasicMaterial({ color: "#bef248" }), new THREE.MeshBasicMaterial({ color: "#ffb547" })];
+  disposables.push(pGeo, ...pMats);
+  for (let i = 0; i < 7; i++) {
+    const m = new THREE.Mesh(pGeo, pMats[i % 3]);
+    m.userData = { r: 1.15 + (i % 3) * 0.12, speed: 0.6 + i * 0.07, phase: (i / 7) * Math.PI * 2, y: 0.2 + (i % 4) * 0.55, s: 0.7 + (i % 3) * 0.25 };
+    m.scale.setScalar(m.userData.s);
+    particles.add(m);
+  }
+
   return {
-    root, shadow, head, body, torso, arms, ahoge, skinMat,
+    root, shadow, head, body, torso, arms, ahoge, skinMat, glint, glintMat, halo, particles,
     dispose: () => disposables.forEach((d) => d.dispose?.()),
   };
 }

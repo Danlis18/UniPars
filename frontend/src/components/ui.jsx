@@ -3,7 +3,17 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { AlertTriangle, Inbox, Loader2, X } from "lucide-react";
 import { colorFor, initials } from "../lib/format.js";
 
-export function Avatar({ user, size = 40 }) {
+export function Avatar({ user, size = 40, ring = false }) {
+  if (ring) {
+    // Градієнтне кільце як у сторіз
+    return (
+      <span className="avatar-ring shrink-0" style={{ padding: Math.max(2, size * 0.04) }}>
+        <span className="block rounded-full bg-bg" style={{ padding: Math.max(1.5, size * 0.03) }}>
+          <Avatar user={user} size={size - Math.max(2, size * 0.04) * 2 - Math.max(1.5, size * 0.03) * 2} />
+        </span>
+      </span>
+    );
+  }
   const name = user?.display_name || "?";
   if (user?.avatar_url) return <img src={user.avatar_url} alt="" className="rounded-full object-cover shrink-0" style={{ width: size, height: size }} />;
   return (

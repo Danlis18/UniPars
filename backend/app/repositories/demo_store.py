@@ -12,7 +12,7 @@ from .store import Filter, Row
 # Таблиці без колонки id (складений PK)
 _NO_ID = {
     "university_memberships", "subject_programs", "subject_subscriptions",
-    "material_details", "question_details", "reactions", "bookmarks",
+    "material_details", "question_details", "reactions", "bookmarks", "follows",
 }
 
 

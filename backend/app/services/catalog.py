@@ -23,7 +23,7 @@ class CatalogService:
             memberships.append({**m, "university": {"id": uid, "name": u.get("name"), "short_name": u.get("short_name"),
                                                     "is_demo": u.get("is_demo", False)}})
         return {
-            "id": p["id"], "display_name": p.get("display_name"), "avatar_url": p.get("avatar_url"), "bio": p.get("bio", ""),
+            "id": p["id"], "display_name": p.get("display_name"), "avatar_url": p.get("avatar_url"), "bio": p.get("bio", ""), "telegram": p.get("telegram"),
             "theme": p.get("theme", "system"), "locale": p.get("locale", "uk"),
             "active_university_id": p.get("active_university_id") if p.get("active_university_id") in self.a.memberships else
             (next(iter(self.a.memberships), None)),
@@ -32,6 +32,8 @@ class CatalogService:
 
     def update_me(self, data: ProfileUpdate) -> Row:
         values = data.model_dump(exclude_unset=True)
+        if values.get("telegram") == "":
+            values["telegram"] = None
         if "active_university_id" in values and values["active_university_id"] not in self.a.memberships:
             raise HTTPException(403, "Ви не є учасником цього університету")
         if values:

@@ -140,8 +140,10 @@ export function PostActions({ post }) {
   const patch = usePatchPost();
   const toast = useToast();
   const nav = useNavigate();
+  const [pop, setPop] = useState(0);
   const useful = useMutation({
     mutationFn: () => api(`/posts/${post.id}/useful`, { method: "POST" }),
+    onMutate: () => { if (!post.liked) setPop((n) => n + 1); patch(post.id, { liked: !post.liked, useful_count: post.useful_count + (post.liked ? -1 : 1) }); },
     onSuccess: (r) => patch(post.id, { liked: r.active, useful_count: r.useful_count }),
     onError: (e) => toast(e.message, "error"),
   });
@@ -161,7 +163,11 @@ export function PostActions({ post }) {
   return (
     <div className="flex items-center justify-between mt-2 -ml-2 max-w-md" onClick={(e) => e.stopPropagation()}>
       <button className={`${btn} ${post.liked ? "text-rose-600 dark:text-rose-400" : ""}`} onClick={() => useful.mutate()} aria-pressed={post.liked} title={t("actions.useful")}>
-        <Heart size={16} fill={post.liked ? "currentColor" : "none"} /> <span>{post.useful_count || ""}</span><span className="sr-only">{t("actions.useful")}</span>
+        <span className="relative inline-flex" key={pop}>
+          <Heart size={16} fill={post.liked ? "currentColor" : "none"} className={pop ? "heart-pop" : ""} />
+          {pop > 0 && post.liked && <span className="heart-burst" />}
+        </span>
+        <span>{post.useful_count || ""}</span><span className="sr-only">{t("actions.useful")}</span>
       </button>
       <Link to={`/p/${post.id}`} className={btn} title={t("actions.comments")}>
         <MessageCircle size={16} /> <span>{post.comment_count || ""}</span><span className="sr-only">{t("actions.comments")}</span>
@@ -182,7 +188,7 @@ export function PostHeader({ post, onEdit }) {
     <div className="flex items-start gap-2">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 text-sm flex-wrap">
-          <span className="font-semibold truncate max-w-[180px]">{post.author.display_name}</span>
+          <Link to={`/u/${post.author.id}`} onClick={(e) => e.stopPropagation()} className="font-semibold truncate max-w-[180px] hover:underline">{post.author.display_name}</Link>
           <span className="text-muted">· {timeAgo(post.created_at)}</span>
           {post.visibility === "group" && <span className="chip bg-sunken text-muted" title="Видно лише вашій групі"><Users size={11} /> Група</span>}
           {post.is_demo && <DemoBadge />}
@@ -205,11 +211,11 @@ export default function PostCard({ post }) {
   const nav = useNavigate();
   return (
     <article
-      className="flex gap-3 px-4 py-3 border-b border-line hover:bg-sunken/40 transition-colors cursor-pointer"
+      className="flex gap-3 px-4 py-3 border-b border-line hover:bg-sunken/40 transition-colors cursor-pointer page-in"
       onClick={(e) => { if (!window.getSelection()?.toString()) nav(`/p/${post.id}`); }}
       aria-labelledby={`t-${post.id}`}
     >
-      <Avatar user={post.author} />
+      <Link to={`/u/${post.author.id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 h-fit transition-transform hover:scale-105" aria-label={post.author.display_name}><Avatar user={post.author} /></Link>
       <div className="flex-1 min-w-0">
         <PostHeader post={post} />
         <Link id={`t-${post.id}`} to={`/p/${post.id}`} onClick={(e) => e.stopPropagation()} className="block mt-1.5 font-semibold text-[16px] leading-snug hover:underline break-words">

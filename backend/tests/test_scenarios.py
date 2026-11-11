@@ -197,3 +197,37 @@ def test_moderation_hides_reported_post(client):
     client.post(f"/api/admin/reports/{reports[0]['id']}/resolve", json={"action": "hide"}, headers=as_user(IRYNA, UNI_A))
     assert client.get(f"/api/posts/{pid}", headers=as_user(OLENA)).status_code == 404
     assert client.get(f"/api/posts/{pid}", headers=as_user(IRYNA)).status_code == 200
+
+
+# ---------- Соцфункції ----------
+def test_follow_profile_and_following_feed(client):
+    h = as_user(MAKSYM, UNI_A)
+    prof = client.get(f"/api/users/{IRYNA}", headers=h).json()
+    assert prof["is_following"] and prof["followers"] == 3 and prof["context"]["university"]
+    # відписка / підписка, сповіщення
+    assert client.post(f"/api/users/{ANDRII}/follow", headers=h).json()["is_following"] is True
+    notes = client.get("/api/notifications", headers=as_user(ANDRII)).json()["items"]
+    assert any(n["kind"] == "follow" for n in notes)
+    assert client.post(f"/api/users/{MAKSYM}/follow", headers=h).status_code == 400
+    # стрічка «Підписки» — лише автори, на яких підписаний
+    feed = client.get("/api/posts?tab=following&limit=50", headers=h).json()["items"]
+    assert feed and {p["author"]["id"] for p in feed} <= {IRYNA, OLENA, ANDRII}
+    followers = client.get(f"/api/users/{IRYNA}/followers", headers=h).json()
+    assert {u["id"] for u in followers} == {OLENA, MAKSYM, ANDRII}
+    # чужий приватний матеріал не рахується в профілі
+    assert client.get(f"/api/users/{SOFIIA}", headers=h).json()["posts"] == 0
+
+
+def test_telegram_validation(client):
+    h = as_user(OLENA)
+    me = client.patch("/api/me", json={"telegram": "https://t.me/new_nick_1"}, headers=h).json()
+    assert me["telegram"] == "new_nick_1"
+    assert client.patch("/api/me", json={"telegram": "bad nick!"}, headers=h).status_code == 422
+    assert client.patch("/api/me", json={"telegram": ""}, headers=h).json()["telegram"] is None
+
+
+def test_people_search_in_university(client):
+    res = client.get("/api/users?q=Ір", headers=as_user(OLENA, UNI_A)).json()
+    assert [u["id"] for u in res] == [IRYNA]
+    # людей іншого університету не видно
+    assert SOFIIA not in {u["id"] for u in client.get("/api/users", headers=as_user(OLENA, UNI_A)).json()}

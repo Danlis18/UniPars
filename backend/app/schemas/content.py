@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, HttpUrl
+import re
+
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 PostType = Literal["material", "question", "explanation"]
 MaterialKind = Literal["notes", "lab_example", "practical", "exam_prep", "link"]
@@ -54,6 +56,21 @@ class ProfileUpdate(BaseModel):
     theme: Literal["light", "dark", "system"] | None = None
     locale: Literal["uk"] | None = None
     active_university_id: str | None = None
+    telegram: str | None = Field(default=None, max_length=100)
+
+    @field_validator("telegram")
+    @classmethod
+    def _telegram(cls, v: str | None) -> str | None:
+        """Приймає @нік, нік або посилання t.me/нік; зберігає лише нік."""
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            return ""
+        v = re.sub(r"^(https?://)?(www\.)?(t\.me|telegram\.me)/", "", v).lstrip("@").split("?")[0].strip("/")
+        if not re.fullmatch(r"[A-Za-z0-9_]{5,32}", v):
+            raise ValueError("Нік Telegram: 5–32 символи, латиниця, цифри або _")
+        return v
 
 
 class JoinUniversity(BaseModel):

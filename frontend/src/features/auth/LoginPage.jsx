@@ -70,10 +70,12 @@ export default function LoginPage() {
   const { isDemo } = useSession();
   return (
     <div className="min-h-dvh grid lg:grid-cols-2">
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-primary text-on-primary">
-        <Logo />
+      <div className="hidden lg:flex flex-col justify-between p-12 bg-[#0f2a20] text-white relative overflow-hidden">
+        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-[radial-gradient(circle,#2fe0c455,transparent_70%)]" />
+        <div className="absolute -bottom-40 -left-24 w-[28rem] h-[28rem] rounded-full bg-[radial-gradient(circle,#bef24833,transparent_70%)]" />
+        <Logo onDark />
         <div>
-          <h2 className="font-display text-4xl leading-tight mb-4">Знайти. Запитати.<br />Поділитися.</h2>
+          <h2 className="font-display text-4xl leading-tight mb-4 relative">Знайти. Запитати.<br /><span className="text-brand-light">Поділитися.</span></h2>
           <p className="opacity-80 max-w-md">Конспекти, лабораторні, підготовка до іспитів і відповіді однокурсників — в одному місці, впорядковано за предметами та темами.</p>
         </div>
         <div className="text-sm opacity-70">UniPars — платформа взаємодопомоги студентів</div>

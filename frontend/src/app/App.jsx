@@ -11,7 +11,8 @@ import Onboarding from "../features/auth/Onboarding.jsx";
 import { HomePage, MaterialsPage, QuestionsPage, SavedPage } from "../features/feed/pages.jsx";
 import { SubjectPage, SubjectsPage } from "../features/subjects/pages.jsx";
 import PostPage from "../features/posts/PostPage.jsx";
-import { NotificationsPage, ProfilePage } from "../features/profile/pages.jsx";
+import { NotificationsPage, SettingsPage } from "../features/profile/pages.jsx";
+import UserProfile from "../features/profile/UserProfile.jsx";
 
 const AIPage = lazy(() => import("../features/ai/AIPage.jsx"));
 const AdminPage = lazy(() => import("../features/admin/AdminPage.jsx"));
@@ -75,7 +76,9 @@ const router = createBrowserRouter([
           { path: "/ai", element: <AIPage /> },
           { path: "/saved", element: <SavedPage /> },
           { path: "/notifications", element: <NotificationsPage /> },
-          { path: "/profile", element: <ProfilePage /> },
+          { path: "/profile", element: <Navigate to="/u/me" replace /> },
+          { path: "/u/:id", element: <UserProfile /> },
+          { path: "/settings", element: <SettingsPage /> },
           { path: "/admin", element: <AdminPage /> },
           { path: "*", element: <Navigate to="/" replace /> },
         ],

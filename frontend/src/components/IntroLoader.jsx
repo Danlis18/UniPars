@@ -38,8 +38,8 @@ export default function IntroLoader({ ready, onDone }) {
             <defs>
               <linearGradient id="intro-g" x1="0" y1="0" x2="1" y2="1">
                 <stop offset="0" stopColor="#5ff5dc" />
-                <stop offset="0.5" stopColor="#2fe0c4" />
-                <stop offset="1" stopColor="#0f8f86" />
+                <stop offset="0.45" stopColor="#14c4a8" />
+                <stop offset="1" stopColor="#a3e635" />
               </linearGradient>
               <filter id="intro-shadow" x="-30%" y="-30%" width="160%" height="160%">
                 <feDropShadow dx="0" dy="2.2" stdDeviation="1.6" floodColor="#0f8f86" floodOpacity="0.35" />
@@ -80,7 +80,7 @@ const CSS = `
 .up-path { animation: up-draw 1.35s cubic-bezier(.65,0,.35,1) .15s forwards; }
 .up-path-depth { stroke: #0b5f59; opacity: .35; transform: translate(1.4px, 2px); animation: up-draw 1.35s cubic-bezier(.65,0,.35,1) .22s forwards; }
 .up-shine { stroke: rgba(255,255,255,.85); stroke-width: 1.6; stroke-dasharray: .06 1; animation: up-shine 1.6s ease-in-out 1.4s 1 forwards; }
-.up-node { fill: #0f8f86; transform-origin: 32px 39.5px; transform: scale(0); animation: up-pop .55s cubic-bezier(.34,1.56,.64,1) 1.25s forwards; }
+.up-node { fill: #14c4a8; transform-origin: 32px 39.5px; transform: scale(0); animation: up-pop .55s cubic-bezier(.34,1.56,.64,1) 1.25s forwards; }
 .up-ripple { fill: none; stroke: #2fe0c4; stroke-width: 1.2; transform-origin: 32px 39.5px; opacity: 0;
   animation: up-ripple 1.1s ease-out 1.35s 2; }
 .up-orbit { fill: #2fe0c4; transform-origin: 32px 39.5px; opacity: 0; animation: up-orbit 2.2s linear 1.5s forwards; }

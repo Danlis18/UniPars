@@ -21,18 +21,18 @@ def svc(c: Ctx) -> PostService:
 
 @router.get("/posts")
 def list_posts(
-    tab: Literal["for_me", "my_subjects", "university"] = "university",
+    tab: Literal["for_me", "following", "my_subjects", "university"] = "university",
     type: Literal["material", "question", "explanation"] | None = None,
     subject_id: str | None = None, topic_id: str | None = None,
     status: Literal["open", "solved", "unanswered"] | None = None,
     q: str | None = Query(None, max_length=100), kind: str | None = None,
     course: int | None = None, semester: int | None = None,
-    saved: bool = False, author: Literal["me"] | None = None, sort: Literal["new", "popular"] = "new",
+    saved: bool = False, author: Literal["me"] | None = None, author_id: str | None = None, sort: Literal["new", "popular"] = "new",
     offset: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=50),
     c: Ctx = Depends(ctx), uni: str = Depends(university_header),
 ):
     return svc(c).list(uni, tab=tab, type=type, subject_id=subject_id, topic_id=topic_id, status=status, q=q, kind=kind,
-                       course=course, semester=semester, saved=saved, author=author, sort=sort, offset=offset, limit=limit)
+                       course=course, semester=semester, saved=saved, author=author, author_id=author_id, sort=sort, offset=offset, limit=limit)
 
 
 @router.post("/posts", status_code=201)

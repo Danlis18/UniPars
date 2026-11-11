@@ -11,6 +11,7 @@ import AgentMascot from "./agent/AgentMascot.jsx";
 import NewsWidget from "../features/news/NewsWidget.jsx";
 import Composer, { useComposer } from "../features/feed/Composer.jsx";
 import { useNotifications } from "../features/profile/pages.jsx";
+import { FollowButton } from "../features/profile/UserProfile.jsx";
 
 function UniversitySwitcher({ compact }) {
   const { me, activeUniversityId, switchUniversity } = useSession();
@@ -63,8 +64,8 @@ function ProfileMenu({ compact }) {
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div className="absolute z-40 bottom-full mb-2 left-0 w-56 card shadow-xl py-1 text-sm" role="menu">
-            <button role="menuitem" className="w-full flex items-center gap-2 px-3 py-2 hover:bg-sunken" onClick={() => { setOpen(false); nav("/profile"); }}><User size={16} /> {t("nav.profile")}</button>
-            <button role="menuitem" className="w-full flex items-center gap-2 px-3 py-2 hover:bg-sunken" onClick={() => { setOpen(false); nav("/profile?tab=settings"); }}><Settings size={16} /> {t("nav.settings")}</button>
+            <button role="menuitem" className="w-full flex items-center gap-2 px-3 py-2 hover:bg-sunken" onClick={() => { setOpen(false); nav("/u/me"); }}><User size={16} /> {t("nav.profile")}</button>
+            <button role="menuitem" className="w-full flex items-center gap-2 px-3 py-2 hover:bg-sunken" onClick={() => { setOpen(false); nav("/settings"); }}><Settings size={16} /> {t("nav.settings")}</button>
             <button role="menuitem" className="w-full flex items-center gap-2 px-3 py-2 hover:bg-sunken text-danger" onClick={signOut}><LogOut size={16} /> {t("nav.logout")}</button>
           </div>
         </>
@@ -84,6 +85,7 @@ function useNavItems() {
     { to: "/ai", label: t("nav.ai"), icon: Sparkles },
     { to: "/saved", label: t("nav.saved"), icon: BookMarked },
     { to: "/notifications", label: t("nav.notifications"), icon: Bell, badge: notes.data?.unread },
+    { to: "/u/me", label: t("nav.profile"), icon: User },
     ...(isStaff ? [{ to: "/admin", label: t("nav.admin"), icon: Shield }] : []),
   ];
 }
@@ -99,7 +101,7 @@ function LeftNav({ compact }) {
         {items.map(({ to, label, icon: Icon, end, badge }) => (
           <li key={to}>
             <NavLink to={to} end={end} title={compact ? label : undefined}
-              className={({ isActive }) => `relative flex items-center gap-4 rounded-full ${compact ? "p-3" : "px-3 py-2.5"} text-[17px] transition-colors hover:bg-sunken ${isActive ? "font-semibold text-primary" : ""}`}>
+              className={({ isActive }) => `relative flex items-center gap-4 rounded-full ${compact ? "p-3" : "px-3 py-2.5"} text-[17px] transition-all hover:bg-sunken active:scale-[0.97] ${isActive ? "font-semibold text-primary bg-gradient-to-r from-teal/15 via-lime/10 to-transparent" : ""}`}>
               {({ isActive }) => (
                 <>
                   <Icon size={24} strokeWidth={isActive ? 2.4 : 1.8} />
@@ -111,7 +113,7 @@ function LeftNav({ compact }) {
           </li>
         ))}
       </ul>
-      <button className={`btn-primary h-12 mt-2 text-base ${compact ? "w-12 p-0" : "w-full"}`} onClick={() => open("material")} aria-label={t("nav.create")}>
+      <button className={`btn-accent h-12 mt-2 text-base ${compact ? "w-12 p-0" : "w-full"}`} onClick={() => open("material")} aria-label={t("nav.create")}>
         {compact ? <Plus size={22} /> : t("nav.create")}
       </button>
       <div className="mt-auto flex flex-col gap-1">
@@ -142,6 +144,27 @@ function UnansweredWidget() {
         ))}
       </ul>
       <Link to="/questions?status=unanswered" className="block px-4 py-2.5 text-sm text-primary hover:bg-sunken/60">Усі без відповіді</Link>
+    </section>
+  );
+}
+
+function WhoToFollow() {
+  const { activeUniversityId } = useSession();
+  const q = useQuery({ queryKey: ["people", activeUniversityId, "suggest"], queryFn: () => api("/users", { query: { suggest: true, limit: 4 } }), enabled: Boolean(activeUniversityId) });
+  if (!q.data?.length) return null;
+  return (
+    <section className="card overflow-hidden" aria-labelledby="wtf-h">
+      <h2 id="wtf-h" className="font-display text-base px-4 pt-3 pb-1">Кого читати</h2>
+      <ul>{q.data.map((u) => (
+        <li key={u.id} className="flex items-center gap-3 px-4 py-2 hover:bg-sunken/60">
+          <Link to={`/u/${u.id}`} className="flex items-center gap-3 min-w-0 flex-1">
+            <Avatar user={u} size={38} ring />
+            <span className="min-w-0"><span className="block text-sm font-semibold truncate">{u.display_name}</span>
+              <span className="block text-xs text-muted truncate">{u.bio || "Студент"}</span></span>
+          </Link>
+          <FollowButton user={u} size="sm" />
+        </li>
+      ))}</ul>
     </section>
   );
 }
@@ -177,6 +200,7 @@ function RightRail() {
       </form>
       <NewsWidget />
       <UnansweredWidget />
+      <WhoToFollow />
       <PopularSubjects />
       <footer className="text-xs text-muted px-2">UniPars · платформа взаємодопомоги студентів</footer>
     </div>
@@ -190,7 +214,7 @@ function MobileBar() {
     { to: "/subjects", icon: LayoutGrid, label: t("nav.subjects") },
     { action: () => open("material"), icon: Plus, label: "Створити" },
     { to: "/ai", icon: Sparkles, label: t("nav.ai") },
-    { to: "/profile", icon: User, label: t("nav.profile") },
+    { to: "/u/me", icon: User, label: t("nav.profile") },
   ];
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-surface/95 backdrop-blur border-t border-line flex justify-around pb-[env(safe-area-inset-bottom)]" aria-label="Нижня навігація">
@@ -249,7 +273,7 @@ export default function Layout() {
       <main id="main" className="min-w-0 border-line md:border-r xl:border-l pb-20 md:pb-0 relative">
         {/* Планшет: допоміжні блоки — в окремій панелі */}
         {!full && <button className="hidden md:inline-flex xl:hidden fixed top-3 right-3 z-30 icon-btn bg-surface border border-line" onClick={() => setRail(true)} aria-label="Новини та підказки"><PanelRight size={18} /></button>}
-        <Outlet />
+        <div key={pathname} className="page-in"><Outlet /></div>
       </main>
 
       <aside className="hidden xl:block pl-6 pr-2 sticky top-0 h-dvh overflow-y-auto scrollbar-none" aria-label="Допоміжна панель"><RightRail /></aside>
