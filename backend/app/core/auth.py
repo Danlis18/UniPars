@@ -18,8 +18,8 @@ class CurrentUser:
 
 
 @lru_cache
-def _jwks_client(url: str) -> jwt.PyJWKClient:
-    return jwt.PyJWKClient(f"{url}/auth/v1/.well-known/jwks.json", cache_keys=True)
+def _jwks_client(url: str, apikey: str) -> jwt.PyJWKClient:
+    return jwt.PyJWKClient(f"{url}/auth/v1/.well-known/jwks.json", cache_keys=True, headers={"apikey": apikey})
 
 
 def decode_token(token: str, settings: Settings) -> CurrentUser:
@@ -31,7 +31,7 @@ def decode_token(token: str, settings: Settings) -> CurrentUser:
         if settings.supabase_jwt_secret:
             claims = jwt.decode(token, settings.supabase_jwt_secret, algorithms=["HS256"], audience="authenticated")
         else:
-            key = _jwks_client(settings.supabase_url).get_signing_key_from_jwt(token)
+            key = _jwks_client(settings.supabase_url, settings.supabase_service_role_key).get_signing_key_from_jwt(token)
             claims = jwt.decode(token, key.key, algorithms=["RS256", "ES256"], audience="authenticated")
     except jwt.PyJWTError as e:
         raise HTTPException(401, "Сесія недійсна або завершилась") from e

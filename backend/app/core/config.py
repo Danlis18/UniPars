@@ -26,6 +26,19 @@ def _origin(value: str) -> str:
     return v
 
 
+def _supabase_base(value: str) -> str:
+    """Лише https://<ref>.supabase.co — без /rest/v1 чи інших шляхів, які часто копіюють разом з URL."""
+    v = value.strip().strip("\"'")
+    if not v:
+        return ""
+    if "://" not in v:
+        v = "https://" + v
+    from urllib.parse import urlparse
+
+    p = urlparse(v)
+    return f"{p.scheme}://{p.netloc}"
+
+
 def _int(name: str, default: int) -> int:
     try:
         return int(os.environ.get(name, default))
@@ -68,7 +81,7 @@ def get_settings() -> Settings:
     e = os.environ.get
     return Settings(
         app_mode=e("APP_MODE", "demo"),
-        supabase_url=e("SUPABASE_URL", "").strip().strip("\"'").rstrip("/"),
+        supabase_url=_supabase_base(e("SUPABASE_URL", "")),
         supabase_service_role_key=e("SUPABASE_SERVICE_ROLE_KEY", ""),
         supabase_jwt_secret=e("SUPABASE_JWT_SECRET", ""),
         storage_bucket=e("STORAGE_BUCKET", "attachments"),

@@ -58,7 +58,8 @@ def health(deep: bool = False):
         out["ok"] = False
         out["database"] = f"error: {type(e).__name__}: {str(e)[:200]}"
     try:
-        r = httpx.get(f"{s.supabase_url}/auth/v1/.well-known/jwks.json", timeout=10)
+        r = httpx.get(f"{s.supabase_url}/auth/v1/.well-known/jwks.json", timeout=10,
+                      headers={"apikey": s.supabase_service_role_key})
         out["auth_jwks"] = "ok" if r.status_code == 200 else f"HTTP {r.status_code}"
     except Exception as e:
         out["ok"] = False
