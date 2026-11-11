@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Тема: теплий світлий фон, темно-зелений основний, лаймові акценти */
+:root {
+  --bg: 246 243 234;
+  --surface: 255 253 248;
+  --sunken: 239 235 224;
+  --ink: 22 36 28;
+  --muted: 98 110 100;
+  --line: 226 220 205;
+  --primary: 31 77 58;
+  --on-primary: 255 255 255;
+  --lime: 198 240 92;
+  --on-lime: 30 44 6;
+  --danger: 190 50 40;
+  --teal: 24 176 160;
+  color-scheme: light;
+}
+.dark {
+  --bg: 14 19 16;
+  --surface: 21 28 24;
+  --sunken: 27 35 30;
+  --ink: 232 238 230;
+  --muted: 146 158 148;
+  --line: 40 50 44;
+  --primary: 168 224 120;
+  --on-primary: 16 30 20;
+  --lime: 198 240 92;
+  --on-lime: 30 44 6;
+  --danger: 255 120 110;
+  --teal: 47 224 196;
+  color-scheme: dark;
+}
+
+html, body, #root { min-height: 100%; }
+body {
+  @apply bg-bg text-ink font-sans antialiased;
+  overflow-x: hidden;
+}
+
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-full px-4 h-10 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primary { @apply btn bg-primary text-on-primary hover:opacity-90; }
+  .btn-lime { @apply btn bg-lime text-on-lime hover:brightness-95; }
+  .btn-ghost { @apply btn border border-line hover:bg-sunken; }
+  .btn-quiet { @apply btn hover:bg-sunken; }
+  .icon-btn { @apply inline-flex items-center justify-center rounded-full w-9 h-9 text-muted hover:bg-sunken hover:text-ink transition-colors; }
+  .input { @apply w-full rounded-xl border border-line bg-surface px-3 h-10 text-sm outline-none focus:border-primary placeholder:text-muted; }
+  .textarea { @apply w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary placeholder:text-muted resize-y; }
+  .label { @apply block text-xs font-semibold text-muted mb-1; }
+  .card { @apply rounded-2xl border border-line bg-surface; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+  .tab { @apply relative px-4 h-12 text-sm font-medium text-muted hover:bg-sunken transition-colors whitespace-nowrap; }
+  .tab[aria-selected="true"] { @apply text-ink font-semibold; }
+  .tab[aria-selected="true"]::after { content: ""; @apply absolute left-1/2 -translate-x-1/2 bottom-0 h-1 w-12 rounded-full bg-primary; }
+  .pill { @apply rounded-full border border-line px-3 h-8 text-xs font-semibold text-muted hover:bg-sunken whitespace-nowrap; }
+  .pill[aria-pressed="true"] { @apply bg-primary text-on-primary border-primary; }
+}
+
+:focus-visible { outline: 2px solid rgb(var(--teal)); outline-offset: 2px; border-radius: 8px; }
+
+/* Навчальні тексти: зручне читання */
+.prose-unipars { @apply text-[15px] leading-relaxed break-words; }
+.prose-unipars p { @apply my-2; }
+.prose-unipars ul { @apply list-disc pl-5 my-2; }
+.prose-unipars ol { @apply list-decimal pl-5 my-2; }
+.prose-unipars h1, .prose-unipars h2, .prose-unipars h3 { @apply font-semibold mt-3 mb-1; }
+.prose-unipars a { @apply text-primary underline underline-offset-2; }
+.prose-unipars blockquote { @apply border-l-4 border-line pl-3 text-muted; }
+.prose-unipars pre { @apply my-2 rounded-xl bg-sunken border border-line p-3 overflow-x-auto text-[13px] font-mono; }
+.prose-unipars :not(pre) > code { @apply rounded bg-sunken px-1 py-0.5 text-[13px] font-mono; }
+.prose-unipars table { @apply my-2 block overflow-x-auto text-sm; }
+.prose-unipars th, .prose-unipars td { @apply border border-line px-2 py-1; }
+.prose-unipars .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+@keyframes caret { 50% { opacity: 0; } }
+.typing-caret::after { content: "▍"; animation: caret 1s infinite; color: rgb(var(--teal)); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

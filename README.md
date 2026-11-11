@@ -1,33 +1,77 @@
-# UniShare — платформа взаємодопомоги студентів
+# UniPars — платформа взаємодопомоги студентів
 
-Сайт у стилі X (Twitter): ліве меню розділів, центральна стрічка матеріалів і питань, праворуч — новини університету через API та AI-помічник на Claude API.
+Студенти університету знаходять конспекти, приклади лабораторних і матеріали до іспитів, ставлять запитання, пояснюють одне одному розв'язання й отримують допомогу AI. Інформація впорядкована за **університетами → предметами → темами**, а інтерфейс схожий на звичну соцмережу: ліве меню, стрічка по центру, новини університету праворуч.
 
-## Запуск
+- Під час відкриття показується анімований логотип UniPars (~4 с).
+- У лівому нижньому куті живе **Парс**, 3D-агент підтримки (three.js). Він стежить за курсором і махає рукою. Якщо натиснути на нього, відкриються підказки та швидке запитання до AI.
+
+## Стек
+
+| Шар | Технології |
+|---|---|
+| Frontend | React + Vite (JS/JSX), Tailwind CSS, React Router, TanStack Query, three.js |
+| Backend | Python + FastAPI |
+| Дані | Supabase: PostgreSQL + RLS, Auth, Storage |
+| AI | Адаптер провайдера (Claude API за замовчуванням) |
+
+Архітектура та ключові рішення описані в [docs/architecture.md](docs/architecture.md), а підключення Supabase, AI та новин — у [docs/setup.md](docs/setup.md).
+
+## Швидкий старт (демо-режим, без Supabase)
 
 ```bash
+# 1. Backend
+cd backend
+python -m venv .venv
+.venv/Scripts/activate        # Windows; на macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env          # APP_MODE=demo
+uvicorn app.main:app --reload --port 8000
+
+# 2. Frontend (у другому терміналі)
+cd frontend
 npm install
-cp .env.example .env   # вкажіть ANTHROPIC_API_KEY і, за бажанням, NEWS_RSS_URL
-npm start              # http://localhost:3000
+npm run dev                   # http://localhost:5173
 ```
+
+У демо-режимі на сторінці входу можна обрати одного з демо-користувачів: студентів двох різних демо-університетів, модераторку або адміністратора. Усі демо-дані позначені **ДЕМО**.
+
+AI запрацює, щойно в `backend/.env` з'явиться `ANTHROPIC_API_KEY`. Без ключа сторінка AI чесно показує «AI ще не підключено».
+
+## Тести
+
+```bash
+cd backend
+.venv/Scripts/python -m pytest -q
+```
+
+Тести покривають основні сценарії:
+- Користувач іншого університету не бачить приватних матеріалів ні напряму, ні в стрічці, ні через AI-контекст, ні через посилання на файл.
+- Матеріали з видимістю «лише для групи» бачить тільки ця група.
+- Чужі AI-діалоги недоступні.
+- Студент не може підвищити собі роль.
+- Повний цикл запитання → відповідь → прийнята відповідь → повторне відкриття, а також сповіщення.
+- Перевірка файлів за форматом і вмістом.
+- Модерація.
+- Розбір RSS.
 
 ## Структура
 
-| Файл | Що робить |
-|---|---|
-| `server.js` | Express-сервер: REST API постів, новини (RSS → JSON, кеш 10 хв), AI-чат (Claude API, стрімінг SSE) |
-| `public/index.html` | Каркас: ліве меню · стрічка · права колонка |
-| `public/app.js` | SPA-роутер і всі сторінки |
-| `public/styles.css` | Темна тема в стилі X, адаптив для планшета/телефона |
-| `data/seed.json` | Демо-дані (копіюються в `data/db.json` при першому запуску) |
+```
+frontend/src/app          маршрути, провайдери, сесія
+frontend/src/components   спільні компоненти, лого-заставка, 3D-агент
+frontend/src/features     auth, feed, subjects, materials, questions, posts, ai, news, profile, admin
+frontend/src/lib          API-клієнт, i18n, утиліти
+backend/app/api           маршрути FastAPI
+backend/app/core          конфігурація, авторизація
+backend/app/schemas       валідація даних
+backend/app/services      бізнес-логіка та перевірка доступу
+backend/app/repositories  доступ до даних (Supabase / демо), сховище файлів
+backend/app/integrations  AI-провайдер, адаптери новин
+backend/tests             сценарні тести
+supabase/migrations       SQL-схема та політики RLS
+docs                      документація
+```
 
-## Розділи (ліве меню)
-Головна · Огляд (пошук) · Конспекти · Питання · Лабораторні · Екзамени · Предмети · Сповіщення · AI-помічник · Збережене · Профіль
+## Що буде в наступних етапах
 
-## API
-- `GET /api/posts?type=&subject=&q=&author=&saved=` · `POST /api/posts`
-- `POST /api/posts/:id/like|save|solve` · `POST /api/posts/:id/comments`
-- `GET /api/subjects` · `GET /api/notifications` · `GET /api/me`
-- `GET /api/news` — RSS-стрічки з `NEWS_RSS_URL` (через кому); без неї — демо-новини
-- `POST /api/ai/chat` — `{ messages: [{role, content}] }`, відповідь стрімом (SSE)
-
-AI-помічник використовує модель `claude-opus-5-5` з адаптивним мисленням і серверним fallback на випадок відмови.
+Особисті повідомлення, відеодзвінки, гейміфікація, маркетплейс, мобільний застосунок, обмін матеріалами між університетами та витягування тексту з PDF/DOCX для AI. У першій версії непрацюючих кнопок для цих функцій немає.
