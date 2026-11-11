@@ -40,3 +40,10 @@ for r in (core.router, posts.router, ai.router, admin.router):
 @app.get("/api/health")
 def health():
     return {"ok": True}
+
+
+@app.get("/")
+def root():
+    """Щоб відкриття адреси backend у браузері не виглядало як помилка."""
+    s = get_settings()
+    return {"service": "UniPars API", "mode": s.app_mode, "health": "/api/health", "config": "/api/config"}

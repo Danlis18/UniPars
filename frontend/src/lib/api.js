@@ -1,5 +1,13 @@
 // HTTP-клієнт до FastAPI. Токен і активний університет підставляються автоматично.
-const BASE = import.meta.env.VITE_API_URL || "";
+// Терпимо до типових помилок у VITE_API_URL: пробіли, «/» або «/api» у кінці, відсутній https://
+function normalizeBase(raw) {
+  let url = (raw || "").trim().replace(/^["']|["']$/g, "");
+  if (!url) return "";
+  if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+  return url.replace(/\/+$/, "").replace(/\/api$/i, "");
+}
+export const BASE = normalizeBase(import.meta.env.VITE_API_URL);
+export const API_ORIGIN = BASE || (typeof location !== "undefined" ? location.origin : "");
 
 let tokenGetter = async () => null;
 let universityId = null;
@@ -56,10 +64,14 @@ export async function api(path, { method = "GET", body, query, signal } = {}) {
     });
   } catch (e) {
     if (e.name === "AbortError") throw e;
-    throw new ApiError(0, "Немає з'єднання з сервером");
+    throw new ApiError(0, `Немає з'єднання з сервером ${API_ORIGIN} (перевірте адресу backend і CORS_ORIGINS)`);
   }
   if (!res.ok) throw await parseError(res);
   if (res.status === 204) return null;
+  // Якщо замість API відповів статичний сервер frontend (HTML), VITE_API_URL вказано неправильно
+  if (!(res.headers.get("content-type") || "").includes("json")) {
+    throw new ApiError(0, `За адресою ${API_ORIGIN}/api відповідає не backend UniPars`);
+  }
   return res.json();
 }
 

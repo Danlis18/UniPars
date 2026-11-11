@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useState } from "react";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, ScrollRestoration } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider, useSession } from "./session.jsx";
+import { API_ORIGIN } from "../lib/api.js";
 import { ErrorState, Loading, UiProvider } from "../components/ui.jsx";
 import IntroLoader from "../components/IntroLoader.jsx";
 import Layout from "../components/Layout.jsx";
@@ -24,7 +25,16 @@ const queryClient = new QueryClient({
 function Gate() {
   const s = useSession();
   if (s.authLoading) return null;
-  if (s.configError) return <div className="min-h-dvh grid place-items-center"><ErrorState error={{ message: "Сервер UniPars недоступний. Запустіть backend (див. README)." }} onRetry={() => location.reload()} /></div>;
+  if (s.configError) return (
+    <div className="min-h-dvh grid place-items-center p-4">
+      <div className="max-w-lg">
+        <ErrorState error={{ message: `Сервер UniPars недоступний. ${s.configError.message}` }} onRetry={() => location.reload()} />
+        <p className="text-xs text-muted text-center">
+          Адреса backend: <code className="break-all">{API_ORIGIN}/api</code>. Якщо вона неправильна — змініть VITE_API_URL і зробіть Redeploy frontend.
+        </p>
+      </div>
+    </div>
+  );
   if (!s.isAuthed) return <LoginPage />;
   return <Outlet />;
 }
