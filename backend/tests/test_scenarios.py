@@ -231,3 +231,41 @@ def test_people_search_in_university(client):
     assert [u["id"] for u in res] == [IRYNA]
     # людей іншого університету не видно
     assert SOFIIA not in {u["id"] for u in client.get("/api/users", headers=as_user(OLENA, UNI_A)).json()}
+
+
+# ---------- Особисті повідомлення ----------
+def test_direct_messages_permissions_and_flow(client):
+    # Максим підписаний на Олену → Олена може написати Максиму, а Софія (інший університет, не підписана) — ні
+    assert client.post(f"/api/messages/with/{MAKSYM}", headers=as_user(SOFIIA)).status_code == 403
+    assert client.get(f"/api/users/{MAKSYM}", headers=as_user(OLENA)).json()["can_message"] is True
+    conv = client.post(f"/api/messages/with/{MAKSYM}", headers=as_user(OLENA)).json()
+    assert conv["can_send"] and conv["user"]["id"] == MAKSYM
+    # повторне відкриття повертає той самий діалог
+    assert client.post(f"/api/messages/with/{MAKSYM}", headers=as_user(OLENA)).json()["id"] == conv["id"]
+
+    assert client.post(f"/api/messages/{conv['id']}/messages", json={"body": "Привіт!"}, headers=as_user(OLENA)).status_code == 201
+    assert client.get("/api/messages/unread", headers=as_user(MAKSYM)).json()["unread"] == 1
+    lst = client.get("/api/messages", headers=as_user(MAKSYM)).json()
+    assert lst[0]["id"] == conv["id"] and lst[0]["unread"] == 1 and lst[0]["last_message"]["body"] == "Привіт!"
+    client.post(f"/api/messages/{conv['id']}/read", headers=as_user(MAKSYM))
+    assert client.get("/api/messages/unread", headers=as_user(MAKSYM)).json()["unread"] == 0
+    # Максим відповідає
+    assert client.post(f"/api/messages/{conv['id']}/messages", json={"body": "Hi"}, headers=as_user(MAKSYM)).status_code == 201
+
+    # Чужий діалог недоступний
+    other = as_user(SOFIIA)
+    assert client.get(f"/api/messages/{conv['id']}/messages", headers=other).status_code == 404
+    assert client.post(f"/api/messages/{conv['id']}/messages", json={"body": "x"}, headers=other).status_code == 404
+    assert client.get("/api/messages", headers=other).json() == []
+
+
+def test_comment_replies(client):
+    pid = did("post:eigen")
+    root = client.post(f"/api/posts/{pid}/comments", json={"body": "Спробуй раціональні корені"}, headers=as_user(MAKSYM)).json()
+    reply = client.post(f"/api/posts/{pid}/comments", json={"body": "Дякую!", "parent_id": root["id"]}, headers=as_user(OLENA)).json()
+    assert reply["parent_id"] == root["id"]
+    # відповідь на коментар іншого допису відхиляється
+    bad = client.post(f"/api/posts/{did('post:bigO')}/comments", json={"body": "x", "parent_id": root["id"]}, headers=as_user(OLENA))
+    assert bad.status_code == 400
+    notes = client.get("/api/notifications", headers=as_user(MAKSYM)).json()["items"]
+    assert any(n["kind"] == "reply" for n in notes)

@@ -96,6 +96,16 @@ def seed(store) -> None:  # noqa: C901 — лінійний сценарій з�
     store.update("profiles", {"id": olena}, {"telegram": "olena_demo"})
     for a, b in ((olena, iryna), (maksym, iryna), (andrii, iryna), (iryna, andrii), (maksym, olena)):
         store.insert("follows", {"follower_id": a, "following_id": b})
+
+    # Демо-діалог (Андрій і Ірина читають одне одного)
+    conv = did("dm:andrii-iryna")
+    store.insert("dm_conversations", {"id": conv, "pair_key": ":".join(sorted((andrii, iryna))), "created_at": ago(5), "last_message_at": ago(1)})
+    store.insert("dm_members", {"conversation_id": conv, "user_id": andrii, "last_read_at": ago(1)})
+    store.insert("dm_members", {"conversation_id": conv, "user_id": iryna, "last_read_at": ago(3)})
+    for h, who, text in ((4, andrii, "Привіт! Глянеш мою лабораторну з БД перед здачею?"),
+                         (3.5, iryna, "Так, кидай посилання 🙂"),
+                         (1, andrii, "Готово, опублікував у «Базах даних». Дякую!")):
+        store.insert("dm_messages", {"conversation_id": conv, "sender_id": who, "body": text, "created_at": ago(h)})
     for s in ("math", "algo", "db"):
         store.insert("subject_subscriptions", {"user_id": olena, "subject_id": sid[s]})
     store.insert("subject_subscriptions", {"user_id": maksym, "subject_id": sid["algo"]})

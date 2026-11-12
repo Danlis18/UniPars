@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, BookMarked, BookOpen, ChevronDown, Home, LayoutGrid, LogOut, Menu, MessageCircleQuestion, PanelRight, Plus, Search, Settings, Shield, Sparkles, User, X } from "lucide-react";
+import { Bell, BookMarked, MessageCircle, BookOpen, ChevronDown, Home, LayoutGrid, LogOut, Menu, MessageCircleQuestion, PanelRight, Plus, Search, Settings, Shield, Sparkles, User, X } from "lucide-react";
 import { api } from "../lib/api.js";
 import { t } from "../lib/i18n.js";
 import { useSession } from "../app/session.jsx";
@@ -11,6 +11,7 @@ import AgentMascot from "./agent/AgentMascot.jsx";
 import NewsWidget from "../features/news/NewsWidget.jsx";
 import Composer, { useComposer } from "../features/feed/Composer.jsx";
 import { useNotifications } from "../features/profile/pages.jsx";
+import { useUnreadMessages } from "../features/messages/MessagesPage.jsx";
 import { FollowButton } from "../features/profile/UserProfile.jsx";
 
 function UniversitySwitcher({ compact }) {
@@ -77,6 +78,7 @@ function ProfileMenu({ compact }) {
 function useNavItems() {
   const { isStaff } = useSession();
   const notes = useNotifications();
+  const dms = useUnreadMessages();
   return [
     { to: "/", label: t("nav.home"), icon: Home, end: true },
     { to: "/subjects", label: t("nav.subjects"), icon: LayoutGrid },
@@ -84,6 +86,7 @@ function useNavItems() {
     { to: "/questions", label: t("nav.questions"), icon: MessageCircleQuestion },
     { to: "/ai", label: t("nav.ai"), icon: Sparkles },
     { to: "/saved", label: t("nav.saved"), icon: BookMarked },
+    { to: "/messages", label: "Повідомлення", icon: MessageCircle, badge: dms.data?.unread },
     { to: "/notifications", label: t("nav.notifications"), icon: Bell, badge: notes.data?.unread },
     { to: "/u/me", label: t("nav.profile"), icon: User },
     ...(isStaff ? [{ to: "/admin", label: t("nav.admin"), icon: Shield }] : []),
@@ -256,7 +259,7 @@ export default function Layout() {
   const [menu, setMenu] = useState(false);
   const [rail, setRail] = useState(false);
   const { pathname } = useLocation();
-  const full = pathname.startsWith("/ai");
+  const full = pathname.startsWith("/ai") || pathname.startsWith("/messages");
   return (
     <div className="mx-auto max-w-app md:grid md:grid-cols-[76px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(600px,1fr)_320px] min-h-dvh">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 btn-primary">До вмісту</a>

@@ -315,10 +315,15 @@ class PostService:
                                          "parent_id": data.parent_id, "body": data.body, "is_accepted": False,
                                          "useful_count": 0, "is_hidden": False, "created_at": _now()})
         self.s.update("posts", {"id": post_id}, {"comment_count": post["comment_count"] + 1})
+        me = self.a.profile.get("display_name", "Хтось")
         if post["author_id"] != self.a.user_id:
-            me = self.a.profile.get("display_name", "Хтось")
             notify(self.s, post["author_id"], post["university_id"], "comment",
                    f"{me} відповів(ла) на «{post['title'][:80]}»", data.body[:160], f"/p/{post_id}")
+        if data.parent_id:
+            parent_author = self.s.get("comments", id=data.parent_id)["author_id"]
+            if parent_author not in (self.a.user_id, post["author_id"]):
+                notify(self.s, parent_author, post["university_id"], "reply",
+                       f"{me} відповів(ла) на ваш коментар", data.body[:160], f"/p/{post_id}")
         return next(c for c in self.comments(post_id) if c["id"] == row["id"])
 
     def delete_comment(self, comment_id: str) -> None:

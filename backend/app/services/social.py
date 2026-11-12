@@ -48,6 +48,8 @@ class SocialService:
             "followers": followers, "following": following, "posts": len(posts),
             "useful": sum(x.get("useful_count", 0) for x in posts),
             "is_me": user_id == self.a.user_id, "is_following": is_following, "follows_you": follows_you,
+            # Писати можна тому, хто підписаний на вас, або якщо діалог уже існує
+            "can_message": user_id != self.a.user_id and (follows_you or bool(self.s.get("dm_conversations", pair_key=":".join(sorted((user_id, self.a.user_id)))))),
             "context": context,
         }
 

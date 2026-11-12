@@ -7,6 +7,7 @@ import { useSession } from "../../app/session.jsx";
 import { Avatar, Empty, ErrorState, Loading, Modal, useToast } from "../../components/ui.jsx";
 import { PageHeader, UrlTabs } from "../../components/PageHeader.jsx";
 import PostList from "../feed/PostList.jsx";
+import { MessageButton } from "../messages/MessagesPage.jsx";
 
 export function FollowButton({ user, size = "md", onChange }) {
   const qc = useQueryClient();
@@ -143,7 +144,7 @@ export default function UserProfile() {
                   <button className="btn-ghost h-10" onClick={() => setEditing(true)}><Pencil size={15} /> Редагувати</button>
                   <Link to="/settings" className="btn-ghost h-10 w-10 p-0" aria-label="Налаштування"><Settings size={16} /></Link>
                 </>
-              ) : <FollowButton user={p} />}
+              ) : <><MessageButton user={p} /><FollowButton user={p} /></>}
             </div>
           </div>
           <h2 className="font-display text-2xl mt-3 break-words">{p.display_name}</h2>

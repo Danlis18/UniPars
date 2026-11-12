@@ -16,6 +16,7 @@ import UserProfile from "../features/profile/UserProfile.jsx";
 
 const AIPage = lazy(() => import("../features/ai/AIPage.jsx"));
 const AdminPage = lazy(() => import("../features/admin/AdminPage.jsx"));
+const MessagesPage = lazy(() => import("../features/messages/MessagesPage.jsx"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -76,6 +77,8 @@ const router = createBrowserRouter([
           { path: "/ai", element: <AIPage /> },
           { path: "/saved", element: <SavedPage /> },
           { path: "/notifications", element: <NotificationsPage /> },
+          { path: "/messages", element: <MessagesPage /> },
+          { path: "/messages/:id", element: <MessagesPage /> },
           { path: "/profile", element: <Navigate to="/u/me" replace /> },
           { path: "/u/:id", element: <UserProfile /> },
           { path: "/settings", element: <SettingsPage /> },

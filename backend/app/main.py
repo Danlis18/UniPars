@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, ai, core, posts, social
+from app.api import admin, ai, core, messages, posts, social
 from app.core.config import get_settings
 from app.core.deps import get_store
 from app.services.news import periodic_sync
@@ -33,7 +33,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (core.router, posts.router, social.router, ai.router, admin.router):
+for r in (core.router, posts.router, social.router, messages.router, ai.router, admin.router):
     app.include_router(r, prefix="/api")
 
 
