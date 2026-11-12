@@ -57,6 +57,16 @@ def health(deep: bool = False):
     except Exception as e:  # неправильний URL/ключ або не застосовані міграції
         out["ok"] = False
         out["database"] = f"error: {type(e).__name__}: {str(e)[:200]}"
+    # Перевірка схеми: чи застосовані міграції (лише кількість записів, без даних)
+    schema = {}
+    for table in ("faculties", "programs", "study_groups", "subjects", "topics", "news_sources",
+                  "follows", "dm_conversations", "dm_messages"):
+        try:
+            schema[table] = get_store().count(table)
+        except Exception:
+            schema[table] = "missing"
+            out["ok"] = False
+    out["schema"] = schema
     try:
         r = httpx.get(f"{s.supabase_url}/auth/v1/.well-known/jwks.json", timeout=10,
                       headers={"apikey": s.supabase_service_role_key})
