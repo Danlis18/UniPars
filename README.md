@@ -14,7 +14,7 @@
 | Дані | Supabase: PostgreSQL + RLS, Auth, Storage |
 | AI | Адаптер провайдера (Claude API за замовчуванням) |
 
-Архітектура та ключові рішення описані в [docs/architecture.md](docs/architecture.md), підключення Supabase, AI та новин — у [docs/setup.md](docs/setup.md), а розгортання на GitHub + Supabase + Railway — у [docs/deploy.md](docs/deploy.md).
+Архітектура та ключові рішення описані в [docs/architecture.md](docs/architecture.md), підключення Supabase, AI та новин — у [docs/setup.md](docs/setup.md), а розгортання на GitHub + Supabase + Railway — у [docs/deploy.md](docs/deploy.md), власний домен і пошта — у [docs/domain-and-email.md](docs/domain-and-email.md).
 
 ## Швидкий старт (демо-режим, без Supabase)
 
