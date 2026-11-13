@@ -132,8 +132,8 @@ export default function UserProfile() {
     <>
       <PageHeader back title={p.display_name} subtitle={`${p.posts} ${plural(p.posts, "допис", "дописи", "дописів")}`} />
       <div className="relative">
-        <div className="h-36 sm:h-44 bg-[radial-gradient(120%_120%_at_0%_0%,rgb(var(--teal))_0%,rgb(var(--primary))_45%,rgb(var(--lime))_120%)] overflow-hidden">
-          <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_20%_30%,white_1px,transparent_1.5px)] [background-size:22px_22px]" />
+        <div className="relative h-36 sm:h-44 bg-[radial-gradient(120%_120%_at_0%_0%,rgb(var(--teal))_0%,rgb(var(--primary))_45%,rgb(var(--lime))_120%)] overflow-hidden">
+          <div aria-hidden className="absolute inset-0 pointer-events-none opacity-30 bg-[radial-gradient(circle_at_20%_30%,white_1px,transparent_1.5px)] [background-size:22px_22px]" />
         </div>
         <div className="px-4 pb-4 border-b border-line">
           <div className="flex items-end justify-between -mt-12 sm:-mt-14">

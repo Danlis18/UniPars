@@ -7,3 +7,6 @@ __pycache__/
 .pytest_cache/
 backend/.demo_uploads/
 .DS_Store
+frontend/test-results/
+frontend/playwright-report/
+frontend/e2e-run.log

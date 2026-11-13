@@ -103,13 +103,13 @@ function LeftNav({ compact }) {
       <ul className="flex flex-col gap-0.5 mt-1">
         {items.map(({ to, label, icon: Icon, end, badge }) => (
           <li key={to}>
-            <NavLink to={to} end={end} title={compact ? label : undefined}
+            <NavLink to={to} end={end} title={compact ? label : undefined} aria-label={badge > 0 ? `${label}, нових: ${badge}` : label}
               className={({ isActive }) => `relative flex items-center gap-4 rounded-full ${compact ? "p-3" : "px-3 py-2.5"} text-[17px] transition-all hover:bg-sunken active:scale-[0.97] ${isActive ? "font-semibold text-primary bg-gradient-to-r from-teal/15 via-lime/10 to-transparent" : ""}`}>
               {({ isActive }) => (
                 <>
                   <Icon size={24} strokeWidth={isActive ? 2.4 : 1.8} />
                   {!compact && <span>{label}</span>}
-                  {badge > 0 && <span className="absolute left-6 top-1 min-w-[18px] h-[18px] rounded-full bg-lime text-on-lime text-[11px] font-bold grid place-items-center px-1">{badge}</span>}
+                  {badge > 0 && <span aria-hidden="true" className="absolute left-6 top-1 min-w-[18px] h-[18px] rounded-full bg-lime text-on-lime text-[11px] font-bold grid place-items-center px-1">{badge}</span>}
                 </>
               )}
             </NavLink>
