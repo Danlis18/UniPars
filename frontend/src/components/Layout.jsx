@@ -12,6 +12,7 @@ import NewsWidget from "../features/news/NewsWidget.jsx";
 import Composer, { useComposer } from "../features/feed/Composer.jsx";
 import { useNotifications } from "../features/profile/pages.jsx";
 import { useUnreadMessages } from "../features/messages/MessagesPage.jsx";
+import { SoonChip } from "../features/ai/ComingSoon.jsx";
 import { FollowButton } from "../features/profile/UserProfile.jsx";
 
 function UniversitySwitcher({ compact }) {
@@ -76,7 +77,7 @@ function ProfileMenu({ compact }) {
 }
 
 function useNavItems() {
-  const { isStaff } = useSession();
+  const { isStaff, config } = useSession();
   const notes = useNotifications();
   const dms = useUnreadMessages();
   return [
@@ -84,7 +85,7 @@ function useNavItems() {
     { to: "/subjects", label: t("nav.subjects"), icon: LayoutGrid },
     { to: "/materials", label: t("nav.materials"), icon: BookOpen },
     { to: "/questions", label: t("nav.questions"), icon: MessageCircleQuestion },
-    { to: "/ai", label: t("nav.ai"), icon: Sparkles },
+    { to: "/ai", label: t("nav.ai"), icon: Sparkles, soon: !config?.ai_enabled },
     { to: "/saved", label: t("nav.saved"), icon: BookMarked },
     { to: "/messages", label: "Повідомлення", icon: MessageCircle, badge: dms.data?.unread },
     { to: "/notifications", label: t("nav.notifications"), icon: Bell, badge: notes.data?.unread },
@@ -101,7 +102,7 @@ function LeftNav({ compact }) {
       <Link to="/" className="px-2 py-1.5 rounded-xl" aria-label="UniPars — на головну"><Logo compact={compact} /></Link>
       <UniversitySwitcher compact={compact} />
       <ul className="flex flex-col gap-0.5 mt-1">
-        {items.map(({ to, label, icon: Icon, end, badge }) => (
+        {items.map(({ to, label, icon: Icon, end, badge, soon }) => (
           <li key={to}>
             <NavLink to={to} end={end} title={compact ? label : undefined} aria-label={badge > 0 ? `${label}, нових: ${badge}` : label}
               className={({ isActive }) => `relative flex items-center gap-4 rounded-full ${compact ? "p-3" : "px-3 py-2.5"} text-[17px] transition-all hover:bg-sunken active:scale-[0.97] ${isActive ? "font-semibold text-primary bg-gradient-to-r from-teal/15 via-lime/10 to-transparent" : ""}`}>
@@ -109,6 +110,7 @@ function LeftNav({ compact }) {
                 <>
                   <Icon size={24} strokeWidth={isActive ? 2.4 : 1.8} />
                   {!compact && <span>{label}</span>}
+                  {!compact && soon && <SoonChip className="ml-auto" />}
                   {badge > 0 && <span aria-hidden="true" className="absolute left-6 top-1 min-w-[18px] h-[18px] rounded-full bg-lime text-on-lime text-[11px] font-bold grid place-items-center px-1">{badge}</span>}
                 </>
               )}

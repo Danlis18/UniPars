@@ -7,6 +7,7 @@ import { useSession } from "../../app/session.jsx";
 import { Avatar, Empty, ErrorState, Loading, Modal, useToast } from "../../components/ui.jsx";
 import { PageHeader, UrlTabs } from "../../components/PageHeader.jsx";
 import PostList from "../feed/PostList.jsx";
+import { CoverPicker, ProfileCover } from "./Covers.jsx";
 import { MessageButton } from "../messages/MessagesPage.jsx";
 
 export function FollowButton({ user, size = "md", onChange }) {
@@ -65,10 +66,14 @@ function EditProfile({ profile, onClose }) {
   const { refreshMe } = useSession();
   const qc = useQueryClient();
   const toast = useToast();
-  const [f, setF] = useState({ display_name: profile.display_name || "", bio: profile.bio || "", telegram: profile.telegram ? "@" + profile.telegram : "" });
+  const [f, setF] = useState({ display_name: profile.display_name || "", bio: profile.bio || "", telegram: profile.telegram ? "@" + profile.telegram : "", cover: profile.cover || "" });
   const [error, setError] = useState(null);
   const save = useMutation({
-    mutationFn: () => api("/me", { method: "PATCH", body: { display_name: f.display_name.trim(), bio: f.bio, telegram: f.telegram.trim() } }),
+    mutationFn: () => api("/me", { method: "PATCH", body: {
+      display_name: f.display_name.trim(), bio: f.bio, telegram: f.telegram.trim(),
+      // обкладинку надсилаємо, лише якщо її змінили
+      ...((f.cover || "") !== (profile.cover || "") ? { cover: f.cover } : {}),
+    } }),
     onSuccess: () => { refreshMe(); qc.invalidateQueries({ queryKey: ["user"] }); toast("Профіль оновлено"); onClose(); },
     onError: (e) => setError(e.message),
   });
@@ -80,6 +85,7 @@ function EditProfile({ profile, onClose }) {
         <div><label className="label" htmlFor="e-bio">Про себе</label>
           <textarea id="e-bio" className="textarea min-h-[80px]" value={f.bio} onChange={(e) => setF({ ...f, bio: e.target.value })} maxLength={500}
             placeholder="Що вивчаєш, у чому можеш допомогти іншим" /></div>
+        <CoverPicker value={f.cover} onChange={(cover) => setF({ ...f, cover })} />
         <div><label className="label" htmlFor="e-tg">Telegram (необов'язково)</label>
           <div className="relative">
             <Send size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#229ED9]" />
@@ -132,12 +138,11 @@ export default function UserProfile() {
     <>
       <PageHeader back title={p.display_name} subtitle={`${p.posts} ${plural(p.posts, "допис", "дописи", "дописів")}`} />
       <div className="relative">
-        <div className="relative h-36 sm:h-44 bg-[radial-gradient(120%_120%_at_0%_0%,rgb(var(--teal))_0%,rgb(var(--primary))_45%,rgb(var(--lime))_120%)] overflow-hidden">
-          <div aria-hidden className="absolute inset-0 pointer-events-none opacity-30 bg-[radial-gradient(circle_at_20%_30%,white_1px,transparent_1.5px)] [background-size:22px_22px]" />
-        </div>
+        <ProfileCover cover={p.cover} />
         <div className="px-4 pb-4 border-b border-line">
           <div className="flex items-end justify-between -mt-12 sm:-mt-14">
-            <div className="rounded-full p-1 bg-bg"><Avatar user={p} size={104} ring /></div>
+            {/* z-10: аватар поверх обкладинки */}
+            <div className="relative z-10 rounded-full p-1 bg-bg"><Avatar user={p} size={104} ring /></div>
             <div className="flex gap-2 pb-1">
               {p.is_me ? (
                 <>

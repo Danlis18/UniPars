@@ -93,7 +93,9 @@ def seed(store) -> None:  # noqa: C901 — лінійний сценарій з�
     store.insert("subject_programs", {"subject_id": sid["algo"], "program_id": prog_se, "university_id": UNI_A, "course": 2, "semester": 3})
 
     olena, maksym, iryna, andrii, sofiia = (u["id"] for u in DEMO_USERS)
-    store.update("profiles", {"id": olena}, {"telegram": "olena_demo"})
+    store.update("profiles", {"id": olena}, {"telegram": "olena_demo", "cover": "lib-hall"})
+    store.update("profiles", {"id": iryna}, {"cover": "lviv-roofs"})
+    store.update("profiles", {"id": andrii}, {"cover": "code-night"})
     for a, b in ((olena, iryna), (maksym, iryna), (andrii, iryna), (iryna, andrii), (maksym, olena)):
         store.insert("follows", {"follower_id": a, "following_id": b})
 

@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { BookOpen, HelpCircle, Search, Sparkles, Upload, X } from "lucide-react";
+import { BookOpen, HelpCircle, KeyRound, Search, Sparkles, Upload, X } from "lucide-react";
+import { SoonChip } from "../../features/ai/ComingSoon.jsx";
 import { buildAgent } from "./buildAgent.js";
 import { useSession } from "../../app/session.jsx";
 
@@ -220,12 +221,19 @@ function HelpPanel({ anchor, state, onClose, compact }) {
         </div>
         <button className="icon-btn -mr-2 -mt-1" onClick={onClose} aria-label="Закрити"><X size={16} /></button>
       </div>
+      {!config?.ai_enabled ? (
+        <div className="flex items-center gap-3 rounded-2xl px-3 py-2.5 mb-2 bg-white/30 dark:bg-white/5 border border-white/30 dark:border-white/10">
+          <span className="w-9 h-9 rounded-xl grid place-items-center text-[#0b2a1f] shrink-0" style={{ background: "linear-gradient(135deg,#2fe0c4,#bef248)" }}><KeyRound size={17} /></span>
+          <span className="flex-1 min-w-0 text-sm"><b>AI-помічник</b><span className="block text-xs text-muted">Відкриється незабаром</span></span>
+          <SoonChip />
+        </div>
+      ) : (
       <form onSubmit={ask} className="flex gap-2 mb-2">
         <input ref={inputRef} className="input h-10 rounded-full bg-surface/70" value={q} onChange={(e) => setQ(e.target.value)}
           placeholder="Запитай про завдання…" aria-label="Запитання до AI" />
         <button className="btn-accent h-10 w-10 p-0 shrink-0" aria-label="Запитати AI" disabled={!q.trim()}><Sparkles size={16} /></button>
       </form>
-      {!config?.ai_enabled && <div className="text-xs text-muted mb-2 px-1">AI ще не підключено — але я покажу, де що знайти.</div>}
+      )}
       <ul className="space-y-0.5">
         {TIPS.map(({ icon: Icon, title, text, to }, i) => (
           <li key={title} style={{ transition: `opacity 300ms ease ${shown ? 120 + i * 45 : 0}ms, transform 420ms ${SPRING} ${shown ? 100 + i * 45 : 0}ms`,

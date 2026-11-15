@@ -7,6 +7,7 @@ import { timeAgo } from "../../lib/format.js";
 import { useSession } from "../../app/session.jsx";
 import { useConfirm, useToast } from "../../components/ui.jsx";
 import Markdown from "../../components/Markdown.jsx";
+import AIComingSoon, { useAIEnabled } from "./ComingSoon.jsx";
 
 const STARTERS = [
   ["Поясни тему простими словами", "Поясни простими словами, що таке "],
@@ -66,7 +67,7 @@ function ConversationList({ activeId, onSelect, onNew, onClose }) {
   );
 }
 
-export default function AIPage() {
+function AIChat() {
   const { config } = useSession();
   const enabled = Boolean(config?.ai_enabled);
   const [params, setParams] = useSearchParams();
@@ -244,4 +245,10 @@ export default function AIPage() {
       </section>
     </div>
   );
+}
+
+// Поки AI не запущено — інтерфейс під матовим склом із «SOON»
+export default function AIPage() {
+  const enabled = useAIEnabled();
+  return enabled ? <AIChat /> : <AIComingSoon><AIChat /></AIComingSoon>;
 }

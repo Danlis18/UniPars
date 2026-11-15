@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, CheckCircle2, CircleDot, Download, Eye, FileText, Flag, Heart, Link2, MessageCircle, MoreHorizontal, Pencil, Share2, Sparkles, Trash2, Users } from "lucide-react";
+import { Lock, Bookmark, CheckCircle2, CircleDot, Download, Eye, FileText, Flag, Heart, Link2, MessageCircle, MoreHorizontal, Pencil, Share2, Sparkles, Trash2, Users } from "lucide-react";
 import { api } from "../../lib/api.js";
+import { SoonChip, useAIEnabled } from "../ai/ComingSoon.jsx";
 import { fileSize, timeAgo } from "../../lib/format.js";
 import { t } from "../../lib/i18n.js";
 import { Avatar, DemoBadge, Modal, useConfirm, useToast } from "../../components/ui.jsx";
@@ -141,6 +142,7 @@ export function PostActions({ post }) {
   const toast = useToast();
   const nav = useNavigate();
   const [pop, setPop] = useState(0);
+  const aiEnabled = useAIEnabled();
   const useful = useMutation({
     mutationFn: () => api(`/posts/${post.id}/useful`, { method: "POST" }),
     onMutate: () => { if (!post.liked) setPop((n) => n + 1); patch(post.id, { liked: !post.liked, useful_count: post.useful_count + (post.liked ? -1 : 1) }); },
@@ -175,9 +177,15 @@ export function PostActions({ post }) {
       <button className={`${btn} ${post.saved ? "text-primary" : ""}`} onClick={() => save.mutate()} aria-pressed={post.saved} title={t("actions.save")}>
         <Bookmark size={16} fill={post.saved ? "currentColor" : "none"} /><span className="sr-only">{t("actions.save")}</span>
       </button>
-      <button className={btn} onClick={() => nav(`/ai?post=${post.id}`)} title={post.type === "question" ? "Розібрати з AI" : "Пояснити з AI"}>
-        <Sparkles size={16} /> <span className="hidden sm:inline">AI</span>
-      </button>
+      {aiEnabled ? (
+        <button className={btn} onClick={() => nav(`/ai?post=${post.id}`)} title={post.type === "question" ? "Розібрати з AI" : "Пояснити з AI"}>
+          <Sparkles size={16} /> <span className="hidden sm:inline">AI</span>
+        </button>
+      ) : (
+        <span className={`${btn} cursor-not-allowed opacity-70 hover:bg-transparent`} title="AI-помічник відкриється незабаром" aria-label="AI — незабаром">
+          <Lock size={14} /> <span className="hidden sm:inline">AI</span> <SoonChip />
+        </span>
+      )}
       <button className={btn} onClick={share} title={t("actions.share")}><Share2 size={16} /><span className="sr-only">{t("actions.share")}</span></button>
     </div>
   );

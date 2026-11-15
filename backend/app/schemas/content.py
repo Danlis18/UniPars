@@ -57,6 +57,19 @@ class ProfileUpdate(BaseModel):
     locale: Literal["uk"] | None = None
     active_university_id: str | None = None
     telegram: str | None = Field(default=None, max_length=100)
+    cover: str | None = Field(default=None, max_length=40)
+
+    @field_validator("cover")
+    @classmethod
+    def _cover(cls, v: str | None) -> str | None:
+        """Лише обкладинки з бібліотеки; порожній рядок — прибрати обкладинку."""
+        from app.core.covers import COVER_KEYS
+
+        if v is None or v == "":
+            return v
+        if v not in COVER_KEYS:
+            raise ValueError("Оберіть обкладинку з бібліотеки")
+        return v
 
     @field_validator("telegram")
     @classmethod

@@ -66,6 +66,13 @@ def health(deep: bool = False):
         except Exception:
             schema[table] = "missing"
             out["ok"] = False
+    # Міграція 5: колонка обкладинки профілю
+    try:
+        get_store().count("profiles", [("cover", "is_null", False)])
+        schema["profiles.cover"] = "ok"
+    except Exception:
+        schema["profiles.cover"] = "missing"
+        out["ok"] = False
     out["schema"] = schema
     try:
         r = httpx.get(f"{s.supabase_url}/auth/v1/.well-known/jwks.json", timeout=10,

@@ -21,7 +21,7 @@ test.describe("Вхід і навігація", () => {
     await loginAs(page, request, "Олена");
     const pages = [
       ["/subjects", "Предмети"], ["/materials", "Матеріали"], ["/questions", "Запитання"], ["/saved", "Збережене"],
-      ["/notifications", "Сповіщення"], ["/messages", "Повідомлення"], ["/settings", "Налаштування"], ["/ai", "AI"],
+      ["/notifications", "Сповіщення"], ["/messages", "Повідомлення"], ["/settings", "Налаштування"], ["/ai", "SOON"],
     ];
     for (const [path, heading] of pages) {
       await page.goto(path);
@@ -64,10 +64,12 @@ test.describe("Права доступу", () => {
     await expect(page.locator("#main").getByText("Олена Коваль")).toBeVisible();
   });
 
-  test("без ключа AI сторінка чесно показує, що AI не підключено", async ({ page, request }) => {
+  test("поки AI не запущено — сторінка під склом із SOON, кнопки AI заблоковані", async ({ page, request }) => {
     await loginAs(page, request, "Олена", "/ai");
-    await expect(page.getByText("AI ще не підключено").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Надіслати" })).toBeDisabled();
+    await expect(page.getByText("SOON", { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Чим допомогти з навчанням?" })).toHaveCount(0); // чат прихований від взаємодії
+    await page.goto("/questions");
+    await expect(page.getByLabel("AI — незабаром").first()).toBeVisible();
   });
 });
 

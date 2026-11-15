@@ -23,6 +23,14 @@ def config():
             "max_upload_mb": s.max_upload_mb}
 
 
+@router.get("/covers")
+def covers():
+    """Бібліотека обкладинок профілю (публічна, кешується браузером)."""
+    from app.core.covers import COVERS
+
+    return [{"key": k, "name": n, "theme": t, "source": f"https://www.pexels.com/photo/{pid}/"} for k, (n, t, pid) in COVERS.items()]
+
+
 @router.get("/demo/users")
 def demo_users():
     if not get_settings().is_demo:

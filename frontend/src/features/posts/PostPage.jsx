@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Flag, Heart, Reply, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import { CheckCircle2, Flag, Lock, Heart, Reply, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { api } from "../../lib/api.js";
+import { SoonChip, useAIEnabled } from "../ai/ComingSoon.jsx";
 import { timeAgo } from "../../lib/format.js";
 import { local } from "../../lib/storage.js";
 import { useSession } from "../../app/session.jsx";
@@ -165,6 +166,7 @@ export default function PostPage() {
   const nav = useNavigate();
   const toast = useToast();
   const [editing, setEditing] = useState(false);
+  const aiEnabled = useAIEnabled();
   const draftKey = `unipars.reply.${id}`;
   const [reply, setReply] = useState(() => local.get(draftKey, ""));
 
@@ -227,9 +229,15 @@ export default function PostPage() {
         )}
         <Attachments post={p} />
         <div className="flex flex-wrap gap-2 mt-3">
-          <button className="btn-lime h-9" onClick={() => nav(`/ai?post=${p.id}`)}>
-            <Sparkles size={16} /> {p.type === "question" ? "Розібрати з AI" : "Пояснити з AI"}
-          </button>
+          {aiEnabled ? (
+            <button className="btn-lime h-9" onClick={() => nav(`/ai?post=${p.id}`)}>
+              <Sparkles size={16} /> {p.type === "question" ? "Розібрати з AI" : "Пояснити з AI"}
+            </button>
+          ) : (
+            <span className="btn h-9 border border-dashed border-line text-muted cursor-not-allowed" title="AI-помічник відкриється незабаром">
+              <Lock size={15} /> {p.type === "question" ? "Розібрати з AI" : "Пояснити з AI"} <SoonChip />
+            </span>
+          )}
           {p.is_mine && p.type === "question" && p.status === "solved" && (
             <button className="btn-ghost h-9" onClick={reopen}><RotateCcw size={16} /> Відкрити повторно</button>
           )}

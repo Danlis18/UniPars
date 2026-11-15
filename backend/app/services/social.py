@@ -44,7 +44,7 @@ class SocialService:
                        "group": grp and grp["name"], "course": m.get("course"), "role": m["role"]}
         return {
             "id": p["id"], "display_name": p.get("display_name"), "avatar_url": p.get("avatar_url"), "bio": p.get("bio") or "",
-            "telegram": p.get("telegram"), "created_at": p.get("created_at"),
+            "telegram": p.get("telegram"), "cover": p.get("cover"), "created_at": p.get("created_at"),
             "followers": followers, "following": following, "posts": len(posts),
             "useful": sum(x.get("useful_count", 0) for x in posts),
             "is_me": user_id == self.a.user_id, "is_following": is_following, "follows_you": follows_you,

@@ -135,13 +135,13 @@ test.describe("Соцфункції та повідомлення", () => {
     await expect(page.getByRole("link", { name: "@olena_e2e" })).toHaveAttribute("href", "https://t.me/olena_e2e");
   });
 
-  test("агент Парс відкриває скляну панель поверх сайту, поле вводу активне", async ({ page, request }) => {
+  test("агент Парс відкриває скляну панель поверх сайту, підказки клікабельні", async ({ page, request }) => {
     await loginAs(page, request, "Олена");
     await page.getByRole("button", { name: /Агент підтримки UniPars/ }).first().click();
-    const input = page.getByLabel("Запитання до AI");
-    await expect(input).toBeVisible();
-    await input.fill("Як підготуватися до іспиту?");
-    await input.press("Enter");
-    await expect(page).toHaveURL(/\/ai/);
+    const panel = page.getByRole("dialog", { name: "Допомога UniPars" });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText("Відкриється незабаром")).toBeVisible(); // AI — SOON
+    await panel.getByRole("button", { name: /Знайти матеріал/ }).click();
+    await expect(page).toHaveURL(/\/materials/);
   });
 });

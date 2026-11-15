@@ -269,3 +269,13 @@ def test_comment_replies(client):
     assert bad.status_code == 400
     notes = client.get("/api/notifications", headers=as_user(MAKSYM)).json()["items"]
     assert any(n["kind"] == "reply" for n in notes)
+
+
+def test_profile_cover_only_from_library(client):
+    h = as_user(MAKSYM)
+    assert len(client.get("/api/covers").json()) == 20
+    assert client.patch("/api/me", json={"cover": "aurora-valley"}, headers=h).json()["cover"] == "aurora-valley"
+    assert client.get(f"/api/users/{MAKSYM}", headers=as_user(OLENA)).json()["cover"] == "aurora-valley"
+    # довільний URL чи невідомий ключ відхиляються
+    assert client.patch("/api/me", json={"cover": "https://evil.example/x.jpg"}, headers=h).status_code == 422
+    assert client.patch("/api/me", json={"cover": ""}, headers=h).json()["cover"] is None

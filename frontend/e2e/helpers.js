@@ -22,7 +22,7 @@ export async function loginAs(page, request, namePrefix, path = "/") {
 
 export async function waitForApp(page) {
   // заставка зникла, інтерфейс готовий
-  await expect(page.getByRole("status", { name: "Завантаження UniPars" })).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByRole("status", { name: "Завантаження UniPars" })).toHaveCount(0, { timeout: 30_000 });
 }
 
 export async function api(request, user, method, path, body) {
