@@ -43,7 +43,11 @@ export default function LoginPage() {
           <h2 className="font-display text-4xl leading-tight mb-4 relative">Знайти. Запитати.<br /><span className="text-brand-light">Поділитися.</span></h2>
           <p className="opacity-80 max-w-md">Конспекти, лабораторні, підготовка до іспитів і відповіді однокурсників — в одному місці, впорядковано за предметами та темами.</p>
         </div>
-        <div className="text-sm opacity-70">UniPars — платформа взаємодопомоги студентів</div>
+        <div className="text-sm opacity-70 flex flex-wrap gap-x-4 gap-y-1">
+          <span>UniPars — платформа взаємодопомоги студентів</span>
+          <a href="/privacy" className="hover:underline">Конфіденційність</a>
+          <a href="/terms" className="hover:underline">Умови</a>
+        </div>
       </div>
       <div className="grid place-items-center p-4">
         <div className="w-full max-w-sm">

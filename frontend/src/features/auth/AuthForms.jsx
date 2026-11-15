@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, Eye, EyeOff, MailCheck, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { supabase, supabaseUrl, supabaseAnonKey } from "../../lib/supabase.js";
 import {
   authErrorText, emailError, emailSuggestion, normalizeEmail, passwordChecks, passwordScore, passwordValid,
@@ -286,7 +287,11 @@ function SignUpForm({ email, setEmail, onNeedVerify, go }) {
         <NewPasswordField value={password} onChange={setPassword} email={email} touched={touched} />
         <Alert msg={msg} />
         <button className="btn-primary w-full" disabled={busy}>{busy ? "Створюємо…" : "Створити акаунт"}</button>
-        <p className="text-xs text-muted text-center">Ми надішлемо {OTP_LENGTH}-значний код на пошту для підтвердження</p>
+        <p className="text-xs text-muted text-center">
+          Ми надішлемо {OTP_LENGTH}-значний код на пошту. Створюючи акаунт, ви погоджуєтеся з{" "}
+          <Link to="/terms" className="text-primary hover:underline">умовами користування</Link> та{" "}
+          <Link to="/privacy" className="text-primary hover:underline">політикою конфіденційності</Link>.
+        </p>
       </form>
       <p className="mt-5 text-sm text-muted text-center">
         Вже є акаунт? <button className="text-primary font-medium hover:underline" onClick={() => go("signin")}>Увійти</button>

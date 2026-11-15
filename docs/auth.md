@@ -41,7 +41,13 @@
    - User type: **External**.
    - App name `UniPars`, support email — ваш.
    - Scopes: `openid`, `email`, `profile` (вони базові й не потребують перевірки Google).
+   - **Branding**:
+     - App home page: `https://unipars-frontend-production.up.railway.app`;
+     - Privacy policy: `https://unipars-frontend-production.up.railway.app/privacy`;
+     - Terms of service: `https://unipars-frontend-production.up.railway.app/terms`;
+     - Authorized domains: `up.railway.app` і `supabase.co`.
    - Publishing status: **In production**. Інакше увійти зможуть лише додані тестові користувачі.
+   - На Railway у сервісі frontend додайте змінну `VITE_SUPPORT_EMAIL` (та сама адреса, що й support email у Google). Вона з'явиться на сторінках `/privacy` і `/terms` як контакт.
 3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
    - Application type: **Web application**.
    - Authorized JavaScript origins: `https://unipars-frontend-production.up.railway.app`.

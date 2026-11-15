@@ -13,6 +13,9 @@ import { SubjectPage, SubjectsPage } from "../features/subjects/pages.jsx";
 import PostPage from "../features/posts/PostPage.jsx";
 import { NotificationsPage, SettingsPage } from "../features/profile/pages.jsx";
 import UserProfile from "../features/profile/UserProfile.jsx";
+import LegalPage from "../features/legal/LegalPage.jsx";
+
+const LEGAL = ["/privacy", "/terms"];
 
 const AIPage = lazy(() => import("../features/ai/AIPage.jsx"));
 const AdminPage = lazy(() => import("../features/admin/AdminPage.jsx"));
@@ -61,6 +64,9 @@ function Root() {
 }
 
 const router = createBrowserRouter([
+  // Публічні сторінки — без входу й без заставки (їх перевіряє Google під час публікації OAuth)
+  { path: "/privacy", element: <LegalPage kind="privacy" /> },
+  { path: "/terms", element: <LegalPage kind="terms" /> },
   {
     element: <Root />,
     children: [
@@ -92,7 +98,7 @@ const router = createBrowserRouter([
 
 function AppWithIntro() {
   const { authLoading } = useSession();
-  const [intro, setIntro] = useState(true);
+  const [intro, setIntro] = useState(() => !LEGAL.includes(window.location.pathname));
   const done = useCallback(() => setIntro(false), []);
   return (
     <>
