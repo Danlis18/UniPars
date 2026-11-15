@@ -52,6 +52,8 @@ def main() -> int:
     check(health.get("mode") == "supabase", f"режим: {health.get('mode')}")
     check(health.get("database") == "ok", f"база даних: {health.get('database')}")
     check(health.get("auth_jwks") == "ok", f"Supabase Auth (JWKS): {health.get('auth_jwks')}")
+    storage = health.get("storage") or {}
+    check(bool(storage) and all(str(v).startswith("ok") for v in storage.values()), f"сховище файлів: {storage or 'немає даних'}")
     schema = health.get("schema", {})
     missing = [t for t in EXPECTED_TABLES if not isinstance(schema.get(t), int)]
     if schema.get("profiles.cover") != "ok":

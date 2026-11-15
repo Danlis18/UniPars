@@ -8,11 +8,17 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import logging
 import time
 from pathlib import Path
 from typing import Protocol
 
+from fastapi import HTTPException
+
 LINK_TTL_SECONDS = 120
+
+
+log = logging.getLogger("unipars.storage")
 
 
 class Storage(Protocol):
@@ -97,7 +103,12 @@ class SupabaseStorage:
             self.public.remove([url[len(self.public_prefix):]])
 
     def put(self, path, data, content_type):
-        self.bucket.upload(path, data, {"content-type": content_type, "upsert": "false"})
+        try:
+            self.bucket.upload(path, data, {"content-type": content_type, "upsert": "false"})
+        except Exception as e:  # помилка сховища → зрозуміла відповідь, а не обрив з'єднання
+            log.exception("storage upload failed: %s (%d bytes)", path, len(data))
+            msg = str(getattr(e, "message", "") or e)[:200]
+            raise HTTPException(502, f"Сховище файлів не прийняло файл: {msg}") from e
 
     def remove(self, path):
         self.bucket.remove([path])

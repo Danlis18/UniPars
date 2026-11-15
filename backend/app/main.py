@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import admin, ai, core, messages, posts, social
@@ -28,6 +30,20 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="UniPars API", version="1.0.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def unhandled_errors(request: Request, call_next):
+    """Непередбачена помилка → JSON 500 із CORS-заголовками (інакше браузер бачить «немає з'єднання»)."""
+    try:
+        return await call_next(request)
+    except Exception:
+        rid = uuid.uuid4().hex[:8]
+        logging.getLogger("unipars").exception("unhandled error %s %s [%s]", request.method, request.url.path, rid)
+        return JSONResponse({"detail": f"Внутрішня помилка сервера. Код: {rid}"}, status_code=500)
+
+
+# CORS додається останнім — він зовнішній і додає заголовки навіть до відповідей про помилки
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origins,
@@ -86,6 +102,23 @@ def health(deep: bool = False):
     except Exception:
         schema["bots"] = "missing"
     out["schema"] = schema
+    # Сховище файлів: бакети існують і доступні сервісному ключу (без розкриття вмісту)
+    storage = {}
+    for bucket in (s.storage_bucket, "avatars"):
+        try:
+            r = httpx.get(f"{s.supabase_url}/storage/v1/bucket/{bucket}", timeout=10,
+                          headers={"apikey": s.supabase_service_role_key, "Authorization": f"Bearer {s.supabase_service_role_key}"})
+            if r.status_code == 200:
+                b = r.json()
+                lim = b.get("file_size_limit")
+                storage[bucket] = f"ok, limit={round(lim / 1048576, 1)}MB" if lim else "ok, no limit"
+            else:
+                storage[bucket] = f"HTTP {r.status_code}"
+                out["ok"] = False
+        except Exception as e:
+            storage[bucket] = f"error: {type(e).__name__}"
+            out["ok"] = False
+    out["storage"] = storage
     try:
         r = httpx.get(f"{s.supabase_url}/auth/v1/.well-known/jwks.json", timeout=10,
                       headers={"apikey": s.supabase_service_role_key})
