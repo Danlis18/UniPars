@@ -8,7 +8,7 @@
 </head>
 <body style="margin:0;padding:0;background:#f6f3ea;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Arial,sans-serif;color:#16241c;">
   <!-- Прихований текст для прев'ю в поштовому клієнті -->
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Ще один крок — підтвердіть пошту, і UniPars відкриється для вас.</div>
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Ваш код підтвердження UniPars: {{ .Token }}</div>
 
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f6f3ea;padding:32px 12px;">
     <tr>
@@ -36,7 +36,7 @@
                   <td style="background:#10563e;background-image:linear-gradient(120deg,#0f2a20 0%,#10563e 45%,#14c4a8 80%,#bef248 120%);padding:40px 36px 34px;">
                     <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#bef248;font-weight:700;">Ласкаво просимо</div>
                     <div style="margin-top:10px;font-size:28px;line-height:1.2;font-weight:800;color:#ffffff;">Залишився один крок 🎓</div>
-                    <div style="margin-top:10px;font-size:15px;line-height:1.5;color:#d9f5ec;">Підтвердіть пошту — і всі конспекти, лабораторні та відповіді однокурсників будуть під рукою.</div>
+                    <div style="margin-top:10px;font-size:15px;line-height:1.5;color:#d9f5ec;">Введіть код із цього листа — і всі конспекти, лабораторні та відповіді однокурсників будуть під рукою.</div>
                   </td>
                 </tr>
               </table>
@@ -44,20 +44,20 @@
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="padding:32px 36px 8px;font-size:15px;line-height:1.6;color:#33443a;">
-                    Ви зареєструвалися в UniPars з адресою <b style="color:#16241c;">{{ .Email }}</b>. Натисніть кнопку нижче, щоб активувати акаунт.
+                    Ви реєструєтеся в UniPars з адресою <b style="color:#16241c;">{{ .Email }}</b>. Введіть цей код на сторінці реєстрації:
                   </td>
                 </tr>
                 <tr>
-                  <td align="center" style="padding:22px 36px 10px;">
-                    <!-- Кнопка (VML-фолбек не потрібен: Outlook покаже звичайне посилання з кольором) -->
-                    <a href="{{ .ConfirmationURL }}" target="_blank"
-                       style="display:inline-block;background:#2fe0c4;background-image:linear-gradient(120deg,#2fe0c4 0%,#bef248 100%);color:#0b2a1f;text-decoration:none;font-weight:800;font-size:16px;padding:16px 34px;border-radius:999px;box-shadow:0 10px 24px -8px rgba(47,224,196,0.7);">
-                      Підтвердити пошту →
-                    </a>
+                  <td align="center" style="padding:20px 36px 8px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="background:#f0fbf8;border:1px solid #bfeee3;border-radius:18px;">
+                      <tr>
+                        <td align="center" style="padding:18px 28px;font-family:'SF Mono',Menlo,Consolas,'Roboto Mono',monospace;font-size:36px;line-height:1;font-weight:800;letter-spacing:10px;color:#0b2a1f;">{{ .Token }}</td>
+                      </tr>
+                    </table>
                   </td>
                 </tr>
                 <tr>
-                  <td align="center" style="padding:6px 36px 26px;font-size:12px;color:#8a958c;">Посилання діє обмежений час.</td>
+                  <td align="center" style="padding:10px 36px 26px;font-size:12px;line-height:1.6;color:#8a958c;">Код діє 1 годину. Нікому його не повідомляйте — працівники UniPars ніколи його не запитують.</td>
                 </tr>
 
                 <!-- Що далі -->
@@ -75,7 +75,7 @@
 
                 <tr>
                   <td style="padding:0 36px 30px;font-size:12px;line-height:1.6;color:#8a958c;border-top:1px solid #efe9db;">
-                    <div style="padding-top:18px;">Кнопка не працює? Скопіюйте посилання в браузер:<br>
+                    <div style="padding-top:18px;">Зручніше посиланням? Відкрийте його в тому ж браузері:<br>
                       <a href="{{ .ConfirmationURL }}" style="color:#0db29c;word-break:break-all;">{{ .ConfirmationURL }}</a></div>
                   </td>
                 </tr>

@@ -95,8 +95,9 @@ Supabase → **Authentication → Emails → SMTP Settings** (або кнопк�
 Потім:
 - **Authentication → Rate Limits → Emails sent per hour**: поставте 100. Після підключення SMTP Supabase ставить лише 30.
 - **Authentication → Emails → Templates**: тепер поля доступні для редагування. Вставте шаблони:
-  - **Confirm signup** ← `supabase/templates/confirmation.html`, тема `Підтвердіть пошту в UniPars ✨`;
-  - **Reset password** ← `supabase/templates/recovery.html`, тема `Новий пароль для UniPars`.
+  - **Confirm signup** ← `supabase/templates/confirmation.html`, тема `Код підтвердження UniPars`;
+  - **Reset password** ← `supabase/templates/recovery.html`, тема `Код для зміни пароля UniPars`.
+- Решта налаштувань входу (код у листі, вимоги до пароля, Google): [auth.md](auth.md).
 
 ## 5. Вхідна пошта: Cloudflare Email Routing
 

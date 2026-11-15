@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api.js";
 import { supabase } from "../../lib/supabase.js";
 import { useSession } from "../../app/session.jsx";
+import SupabaseAuth from "./AuthForms.jsx";
 import { Logo } from "../../components/Logo.jsx";
 import { DemoBadge, ErrorState, Loading } from "../../components/ui.jsx";
 
@@ -31,41 +31,6 @@ function DemoLogin() {
   );
 }
 
-function SupabaseLogin() {
-  const [mode, setMode] = useState("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [msg, setMsg] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const submit = async (e) => {
-    e.preventDefault();
-    setBusy(true);
-    setMsg(null);
-    const { error, data } = mode === "signin"
-      ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password, options: { data: { display_name: name } } });
-    setBusy(false);
-    if (error) setMsg({ error: true, text: error.message });
-    else if (mode === "signup" && !data.session) setMsg({ text: "Перевірте пошту, щоб підтвердити реєстрацію." });
-  };
-  return (
-    <>
-      <h1 className="font-display text-xl mb-4">{mode === "signin" ? "Вхід" : "Реєстрація"}</h1>
-      <form onSubmit={submit} className="space-y-3">
-        {mode === "signup" && <div><label className="label" htmlFor="l-name">Ім'я</label><input id="l-name" className="input" value={name} onChange={(e) => setName(e.target.value)} required /></div>}
-        <div><label className="label" htmlFor="l-email">Email</label><input id="l-email" type="email" autoComplete="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
-        <div><label className="label" htmlFor="l-pass">Пароль</label><input id="l-pass" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength={8} className="input" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
-        {msg && <div className={`text-sm ${msg.error ? "text-danger" : "text-primary"}`} role="alert">{msg.text}</div>}
-        <button className="btn-primary w-full" disabled={busy}>{busy ? "Зачекайте…" : mode === "signin" ? "Увійти" : "Створити акаунт"}</button>
-      </form>
-      <button className="mt-4 text-sm text-primary hover:underline" onClick={() => setMode(mode === "signin" ? "signup" : "signin")}>
-        {mode === "signin" ? "Немає акаунта? Зареєструватися" : "Вже є акаунт? Увійти"}
-      </button>
-    </>
-  );
-}
-
 export default function LoginPage() {
   const { isDemo } = useSession();
   return (
@@ -83,7 +48,7 @@ export default function LoginPage() {
       <div className="grid place-items-center p-4">
         <div className="w-full max-w-sm">
           <div className="lg:hidden mb-8"><Logo /></div>
-          {isDemo ? <DemoLogin /> : supabase ? <SupabaseLogin /> : (
+          {isDemo ? <DemoLogin /> : supabase ? <SupabaseAuth /> : (
             <div className="text-sm text-danger">Вкажіть VITE_SUPABASE_URL і VITE_SUPABASE_ANON_KEY у frontend/.env</div>
           )}
         </div>

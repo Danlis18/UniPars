@@ -12,8 +12,8 @@ function baseUrl(raw) {
   }
 }
 
-const url = baseUrl(import.meta.env.VITE_SUPABASE_URL);
-const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || "").trim();
+export const supabaseUrl = baseUrl(import.meta.env.VITE_SUPABASE_URL);
+export const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || "").trim();
 
 // Supabase на фронтенді використовується лише для автентифікації.
-export const supabase = url && anonKey ? createClient(url, anonKey) : null;
+export const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;

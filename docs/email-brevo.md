@@ -39,8 +39,9 @@ Supabase → **Authentication → Emails → SMTP Settings** → **Enable custom
 Далі:
 - **Authentication → Rate Limits → Emails sent per hour**: поставте `100`.
 - **Authentication → Emails → Templates**: тепер поля доступні для редагування. Вставте фірмові шаблони:
-  - **Confirm signup** ← `supabase/templates/confirmation.html`, тема `Підтвердіть пошту в UniPars ✨`;
-  - **Reset password** ← `supabase/templates/recovery.html`, тема `Новий пароль для UniPars`.
+  - **Confirm signup** ← `supabase/templates/confirmation.html`, тема `Код підтвердження UniPars`;
+  - **Reset password** ← `supabase/templates/recovery.html`, тема `Код для зміни пароля UniPars`.
+- Решта налаштувань входу (код у листі, вимоги до пароля, Google): [auth.md](auth.md).
 
 ## 4. Перевірка
 
