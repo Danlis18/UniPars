@@ -1,82 +1,89 @@
 <!doctype html>
-<html lang="uk">
+<html lang="uk" xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
-  <title>Підтвердіть пошту — UniPars</title>
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>Код підтвердження — UniPars</title>
 </head>
-<body style="margin:0;padding:0;background:#f6f3ea;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Arial,sans-serif;color:#16241c;">
-  <!-- Прихований текст для прев'ю в поштовому клієнті -->
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Ваш код підтвердження UniPars: {{ .Token }}</div>
-
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f6f3ea;padding:32px 12px;">
+<body style="margin:0;padding:0;background:#eef2ec;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;color:#16241c;-webkit-font-smoothing:antialiased;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">Ваш код підтвердження UniPars: {{ .Token }}&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#eef2ec;">
     <tr>
-      <td align="center">
+      <td align="center" style="padding:32px 12px 40px;">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;">
 
           <!-- Логотип -->
           <tr>
-            <td align="center" style="padding:0 0 22px;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-                <tr>
-                  <td style="width:44px;height:44px;border-radius:13px;background:#0f2a20;text-align:center;vertical-align:middle;font-size:26px;font-weight:800;line-height:44px;color:#2fe0c4;">U</td>
-                  <td style="padding-left:10px;font-size:24px;font-weight:800;letter-spacing:-0.5px;color:#16241c;">Uni<span style="color:#0db29c;">Pars</span></td>
-                </tr>
-              </table>
+            <td align="center" style="padding:0 0 20px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+                <td style="vertical-align:middle;"><img src="https://unipars-frontend-production.up.railway.app/email/logo.png" width="44" height="44" alt="" style="display:block;border:0;border-radius:12px;"></td>
+                <td style="vertical-align:middle;padding-left:10px;font-size:24px;font-weight:800;letter-spacing:-0.5px;color:#16241c;">Uni<span style="color:#0db29c;">Pars</span></td>
+              </tr></table>
             </td>
           </tr>
 
           <!-- Картка -->
           <tr>
-            <td style="background:#ffffff;border-radius:24px;overflow:hidden;box-shadow:0 18px 50px -20px rgba(16,86,62,0.35);border:1px solid #e6e0d0;">
-              <!-- Шапка з фірмовим градієнтом -->
+            <td style="background:#ffffff;border-radius:28px;overflow:hidden;border:1px solid #dfe7dc;box-shadow:0 24px 60px -28px rgba(16,86,62,0.45);">
+
+              <!-- Шапка -->
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
-                  <td style="background:#10563e;background-image:linear-gradient(120deg,#0f2a20 0%,#10563e 45%,#14c4a8 80%,#bef248 120%);padding:40px 36px 34px;">
-                    <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#bef248;font-weight:700;">Ласкаво просимо</div>
-                    <div style="margin-top:10px;font-size:28px;line-height:1.2;font-weight:800;color:#ffffff;">Залишився один крок 🎓</div>
-                    <div style="margin-top:10px;font-size:15px;line-height:1.5;color:#d9f5ec;">Введіть код із цього листа — і всі конспекти, лабораторні та відповіді однокурсників будуть під рукою.</div>
+                  <td style="background:#0f2a20;background-image:linear-gradient(135deg,#0f2a20 0%,#10563e 55%,#139f86 100%);padding:34px 32px 30px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
+                      <td width="96" style="vertical-align:middle;width:96px;">
+                        <img src="https://unipars-frontend-production.up.railway.app/email/pars.png" width="88" height="88" alt="Парс — помічник UniPars" style="display:block;border:0;border-radius:50%;">
+                      </td>
+                      <td style="vertical-align:middle;padding-left:16px;">
+                        <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#bef248;font-weight:700;">Ласкаво просимо</div>
+                        <div style="margin-top:6px;font-size:26px;line-height:1.2;font-weight:800;color:#ffffff;">Залишився один крок</div>
+                        <div style="margin-top:8px;display:inline-block;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.18);border-radius:14px 14px 14px 4px;padding:8px 12px;font-size:14px;line-height:1.45;color:#e6fbf4;">Я Парс, помічник UniPars. Введіть код — і я все покажу 👋</div>
+                      </td>
+                    </tr></table>
                   </td>
                 </tr>
               </table>
 
+              <!-- Тіло -->
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
-                  <td style="padding:32px 36px 8px;font-size:15px;line-height:1.6;color:#33443a;">
-                    Ви реєструєтеся в UniPars з адресою <b style="color:#16241c;">{{ .Email }}</b>. Введіть цей код на сторінці реєстрації:
+                  <td style="padding:30px 32px 6px;font-size:15px;line-height:1.65;color:#33443a;">
+                    <div style="font-size:18px;font-weight:700;color:#16241c;margin-bottom:6px;">Привіт{{ if .Data.display_name }}, {{ .Data.display_name }}{{ end }}!</div>
+                    Ви реєструєтеся в UniPars. Щоб підтвердити пошту, введіть цей код на сторінці реєстрації:
                   </td>
                 </tr>
                 <tr>
-                  <td align="center" style="padding:20px 36px 8px;">
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="background:#f0fbf8;border:1px solid #bfeee3;border-radius:18px;">
-                      <tr>
-                        <td align="center" style="padding:18px 28px;font-family:'SF Mono',Menlo,Consolas,'Roboto Mono',monospace;font-size:36px;line-height:1;font-weight:800;letter-spacing:10px;color:#0b2a1f;">{{ .Token }}</td>
-                      </tr>
+                  <td align="center" style="padding:20px 32px 4px;">
+                    <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#6c7c72;font-weight:700;margin-bottom:10px;">Код підтвердження</div>
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="background:#f0fbf8;border:2px dashed #7fe3cf;border-radius:20px;">
+                      <tr><td align="center" style="padding:18px 30px 18px 40px;font-family:'SF Mono',Menlo,Consolas,'Roboto Mono','Courier New',monospace;font-size:40px;line-height:1;font-weight:800;letter-spacing:12px;color:#0b2a1f;">{{ .Token }}</td></tr>
                     </table>
                   </td>
                 </tr>
                 <tr>
-                  <td align="center" style="padding:10px 36px 26px;font-size:12px;line-height:1.6;color:#8a958c;">Код діє 1 годину. Нікому його не повідомляйте — працівники UniPars ніколи його не запитують.</td>
+                  <td align="center" style="padding:14px 32px 28px;font-size:13px;line-height:1.6;color:#6c7c72;">
+                    Код діє <b style="color:#33443a;">1 годину</b> і спрацює лише один раз.
+                  </td>
                 </tr>
-
-                <!-- Що далі -->
                 <tr>
-                  <td style="padding:0 36px 30px;">
-                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f6f3ea;border-radius:16px;">
-                      <tr><td style="padding:18px 20px 6px;font-size:13px;font-weight:800;color:#10563e;letter-spacing:.5px;">ЩО ВАС ЧЕКАЄ</td></tr>
-                      <tr><td style="padding:4px 20px;font-size:14px;line-height:1.5;color:#33443a;">📚&nbsp; Конспекти й приклади лабораторних за предметами та темами</td></tr>
-                      <tr><td style="padding:4px 20px;font-size:14px;line-height:1.5;color:#33443a;">💬&nbsp; Запитання, відповіді та пояснення від однокурсників</td></tr>
-                      <tr><td style="padding:4px 20px;font-size:14px;line-height:1.5;color:#33443a;">✨&nbsp; AI-помічник, який пояснює хід розв'язання</td></tr>
-                      <tr><td style="padding:4px 20px 18px;font-size:14px;line-height:1.5;color:#33443a;">📰&nbsp; Новини вашого університету в одній стрічці</td></tr>
+                  <td style="padding:0 32px 22px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f8f3;border-radius:16px;">
+                      <tr><td style="padding:16px 18px 4px;font-size:12px;font-weight:800;color:#10563e;letter-spacing:1px;">ЩО ВАС ЧЕКАЄ</td></tr>
+                      <tr><td style="padding:4px 18px;font-size:14px;line-height:1.5;color:#33443a;">📚&nbsp; Конспекти й лабораторні за предметами вашого курсу</td></tr>
+                      <tr><td style="padding:4px 18px;font-size:14px;line-height:1.5;color:#33443a;">💬&nbsp; Запитання та відповіді однокурсників</td></tr>
+                      <tr><td style="padding:4px 18px 16px;font-size:14px;line-height:1.5;color:#33443a;">📰&nbsp; Новини університету й факультету в одній стрічці</td></tr>
                     </table>
                   </td>
                 </tr>
-
                 <tr>
-                  <td style="padding:0 36px 30px;font-size:12px;line-height:1.6;color:#8a958c;border-top:1px solid #efe9db;">
-                    <div style="padding-top:18px;">Зручніше посиланням? Відкрийте його в тому ж браузері:<br>
-                      <a href="{{ .ConfirmationURL }}" style="color:#0db29c;word-break:break-all;">{{ .ConfirmationURL }}</a></div>
+                  <td style="padding:0 32px 30px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#fff8e6;border-radius:14px;">
+                      <tr><td style="padding:14px 16px;font-size:13px;line-height:1.55;color:#6b5512;">
+                        🔒 Нікому не повідомляйте цей код. Команда UniPars ніколи не просить його — ні в листах, ні в повідомленнях.
+                      </td></tr>
+                    </table>
                   </td>
                 </tr>
               </table>
@@ -85,11 +92,14 @@
 
           <!-- Футер -->
           <tr>
-            <td align="center" style="padding:22px 20px 0;font-size:12px;line-height:1.6;color:#8a958c;">
-              Якщо ви не реєструвалися в UniPars — просто проігноруйте цей лист.<br>
-              <span style="color:#10563e;font-weight:700;">UniPars</span> · платформа взаємодопомоги студентів
+            <td align="center" style="padding:22px 20px 0;font-size:12px;line-height:1.7;color:#7d8b82;">
+              Не реєструвалися в UniPars? Просто проігноруйте цей лист — акаунт не буде активовано.<br>
+              Лист надіслано на {{ .Email }}<br>
+              <span style="color:#10563e;font-weight:700;">UniPars</span> · платформа взаємодопомоги студентів ·
+              <a href="https://unipars-frontend-production.up.railway.app/privacy" style="color:#7d8b82;">Конфіденційність</a>
             </td>
           </tr>
+
         </table>
       </td>
     </tr>

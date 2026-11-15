@@ -65,7 +65,7 @@ function ProfileMenu({ compact }) {
   const nav = useNavigate();
   return (
     <div className="relative">
-      <button className="w-full flex items-center gap-2.5 rounded-full p-2 hover:bg-sunken" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Меню профілю">
+      <button className={`flex items-center rounded-full hover:bg-sunken ${compact ? "w-[54px] h-[54px] justify-center mx-auto" : "w-full gap-2.5 p-2"}`} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Меню профілю">
         <Avatar user={me} size={38} />
         {!compact && (
           <span className="min-w-0 flex-1 text-left">
@@ -77,10 +77,10 @@ function ProfileMenu({ compact }) {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute z-40 bottom-full mb-2 left-0 w-56 card shadow-xl py-1 text-sm" role="menu">
-            <button role="menuitem" className="w-full flex items-center gap-2 px-3 py-2 hover:bg-sunken" onClick={() => { setOpen(false); nav("/u/me"); }}><User size={16} /> {t("nav.profile")}</button>
-            <button role="menuitem" className="w-full flex items-center gap-2 px-3 py-2 hover:bg-sunken" onClick={() => { setOpen(false); nav("/settings"); }}><Settings size={16} /> {t("nav.settings")}</button>
-            <button role="menuitem" className="w-full flex items-center gap-2 px-3 py-2 hover:bg-sunken text-danger" onClick={signOut}><LogOut size={16} /> {t("nav.logout")}</button>
+          <div className={`absolute z-40 bottom-full mb-2 w-56 card shadow-xl p-1 text-sm left-0`} role="menu">
+            <button role="menuitem" className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left cursor-pointer hover:bg-sunken" onClick={() => { setOpen(false); nav("/u/me"); }}><User size={16} /> {t("nav.profile")}</button>
+            <button role="menuitem" className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left cursor-pointer hover:bg-sunken" onClick={() => { setOpen(false); nav("/settings"); }}><Settings size={16} /> {t("nav.settings")}</button>
+            <button role="menuitem" className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left cursor-pointer hover:bg-sunken text-danger" onClick={signOut}><LogOut size={16} /> {t("nav.logout")}</button>
           </div>
         </>
       )}
@@ -110,7 +110,7 @@ function LeftNav({ compact }) {
   const items = useNavItems();
   const { open } = useComposer();
   return (
-    <nav className={`sticky top-0 h-dvh flex flex-col gap-2 py-3 ${compact ? "items-center px-2" : "px-3"}`} aria-label="Основна навігація">
+    <nav className={`sticky top-0 z-30 h-dvh flex flex-col gap-2 py-3 ${compact ? "items-center px-2" : "px-3"}`} aria-label="Основна навігація">
       <Link to="/" className="px-2 py-1.5 rounded-xl" aria-label="UniPars — на головну"><Logo compact={compact} /></Link>
       <UniversitySwitcher compact={compact} />
       <ul className="flex flex-col gap-0.5 mt-1">

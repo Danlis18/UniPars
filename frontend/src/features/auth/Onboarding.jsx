@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { api, setActiveUniversity } from "../../lib/api.js";
 import { useSession } from "../../app/session.jsx";
 import { Logo } from "../../components/Logo.jsx";
@@ -69,25 +69,74 @@ export function StudyContextForm({ universityId, initial, submitLabel = "Дал�
   );
 }
 
+// Предмети курсу сіткою, згруповані за семестрами навчального плану
 function SubjectPicker({ onDone }) {
-  const { activeUniversityId } = useSession();
+  const { activeUniversityId, membership } = useSession();
   const subjects = useQuery({ queryKey: ["subjects", activeUniversityId, "onb"], queryFn: () => api("/subjects", { query: { scope: "course" } }) });
   const [picked, setPicked] = useState(new Set());
-  useEffect(() => { if (subjects.data) setPicked(new Set(subjects.data.filter((s) => s.subscribed).map((s) => s.id))); }, [subjects.data]);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!subjects.data) return;
+    const subscribed = subjects.data.filter((s) => s.subscribed).map((s) => s.id);
+    // за замовчуванням — усі обов'язкові предмети курсу
+    setPicked(new Set(subscribed.length ? subscribed : subjects.data.filter((s) => !s.is_elective).map((s) => s.id)));
+  }, [subjects.data]);
   if (subjects.isLoading) return <Loading />;
+  const list = subjects.data || [];
+  const course = Number(membership?.course) || null;
+  const own = course ? [2 * course - 1, 2 * course] : [];
+  const semOf = (s) => {
+    const sems = (s.semesters || []).filter((x) => !own.length || own.includes(x));
+    if (sems.length === 1) return sems[0];
+    return sems.length ? "both" : "other";
+  };
+  const groups = [
+    ...own.map((n) => ({ key: n, title: `${n} семестр` })),
+    { key: "both", title: "Обидва семестри" },
+    { key: "other", title: own.length ? "Інші" : "Предмети" },
+  ].map((g) => ({ ...g, items: list.filter((s) => semOf(s) === g.key).sort((x, y) => x.is_elective - y.is_elective || x.name.localeCompare(y.name, "uk")) }))
+    .filter((g) => g.items.length);
   const toggle = (id) => setPicked((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const all = list.length > 0 && picked.size === list.length;
+  const save = async () => {
+    setBusy(true);
+    try { await api("/me/subscriptions", { method: "PUT", body: { subject_ids: [...picked] } }); onDone(); }
+    finally { setBusy(false); }
+  };
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {subjects.data?.map((s) => (
-          <button key={s.id} type="button" className="pill h-9 px-4 flex items-center gap-1.5" aria-pressed={picked.has(s.id)} onClick={() => toggle(s.id)}>
-            {picked.has(s.id) && <Check size={14} />} {s.name}
-          </button>
-        ))}
+    <div className="space-y-5">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted">Обрано <b className="text-ink tabular-nums">{picked.size}</b> з {list.length}</span>
+        <button type="button" className="text-primary font-medium hover:underline" onClick={() => setPicked(new Set(all ? [] : list.map((s) => s.id)))}>
+          {all ? "Зняти всі" : "Обрати всі"}
+        </button>
       </div>
-      <button className="btn-primary" onClick={async () => { await api("/me/subscriptions", { method: "PUT", body: { subject_ids: [...picked] } }); onDone(); }}>
-        Перейти до стрічки
-      </button>
+      {groups.map((g) => (
+        <section key={g.key} aria-labelledby={`sg-${g.key}`}>
+          <h2 id={`sg-${g.key}`} className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">{g.title}</h2>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {g.items.map((s) => {
+              const on = picked.has(s.id);
+              return (
+                <button key={s.id} type="button" role="checkbox" aria-checked={on} onClick={() => toggle(s.id)}
+                  className={`group text-left rounded-xl border px-3 py-2.5 flex items-start gap-2.5 min-h-14 transition-colors
+                    ${on ? "border-primary/70 bg-primary/10" : "border-line hover:border-primary/40 hover:bg-sunken"}`}>
+                  <span className={`mt-0.5 shrink-0 w-5 h-5 rounded-md border grid place-items-center transition-colors
+                    ${on ? "bg-primary border-primary text-on-primary" : "border-line group-hover:border-primary/60"}`} aria-hidden>
+                    {on && <Check size={13} strokeWidth={3} />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium leading-snug">{s.name}</span>
+                    {s.is_elective && <span className="mt-1 inline-block text-[11px] px-1.5 rounded-md bg-lime/15 text-lime">вибіркова</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+      {!list.length && <p className="text-sm text-muted">Для вашого курсу предметів поки немає — їх можна додати пізніше в розділі «Предмети».</p>}
+      <button className="btn-primary w-full sm:w-auto" disabled={busy} onClick={save}>{busy ? "Збереження…" : "Перейти до стрічки"}</button>
     </div>
   );
 }
@@ -102,15 +151,26 @@ export default function Onboarding() {
   const [uni, setUni] = useState(joining ? "" : me?.active_university_id || "");
   const unis = useQuery({ queryKey: ["universities"], queryFn: () => api("/universities") });
   const memberOf = new Set(me?.memberships.map((m) => m.university_id));
+  // Уже зареєстрований користувач може вийти з майстра будь-коли
+  const canClose = joining || me?.memberships?.some((m) => m.onboarded);
+  const close = () => (window.history.length > 1 ? nav(-1) : nav("/", { replace: true }));
+  const nothingToJoin = step === 1 && joining && unis.data?.every((u) => memberOf.has(u.id));
 
   useEffect(() => { if (!needsOnboarding && !joining && step === 1) nav("/", { replace: true }); }, []); // eslint-disable-line
 
   return (
     <div className="min-h-dvh grid place-items-center p-4">
-      <div className="card w-full max-w-lg p-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className={`card w-full p-6 transition-[max-width] duration-300 ${step === 3 ? "max-w-2xl" : "max-w-lg"}`}>
+        <div className="flex items-center justify-between gap-3 mb-6">
           <Logo />
-          <span className="text-xs text-muted">Крок {step} з 3</span>
+          <div className="flex items-center gap-3">
+            {!nothingToJoin && <span className="text-xs text-muted">Крок {step} з 3</span>}
+            {canClose && (
+              <button type="button" onClick={close} className="w-8 h-8 -mr-1 grid place-items-center rounded-full text-muted hover:text-ink hover:bg-sunken" aria-label="Закрити">
+                <X size={18} />
+              </button>
+            )}
+          </div>
         </div>
         {step === 1 && (
           <>
@@ -125,10 +185,21 @@ export default function Onboarding() {
                     <span className="font-medium">{u.name}</span>{u.is_demo && <DemoBadge />}
                   </button>
                 ))}
-                {joining && unis.data?.every((u) => memberOf.has(u.id)) && <p className="text-sm text-muted">Ви вже учасник усіх доступних університетів.</p>}
+                {nothingToJoin && (
+                  <p className="text-sm text-muted rounded-xl bg-sunken p-3">
+                    Ви вже учасник усіх доступних університетів. Нові університети з'являться тут, щойно для них відкриють реєстрацію.
+                  </p>
+                )}
               </div>
             )}
-            <button className="btn-primary" disabled={!uni} onClick={() => setStep(2)}>Далі</button>
+            {nothingToJoin
+              ? <button className="btn-primary" onClick={close}>Повернутися</button>
+              : (
+                <div className="flex gap-2">
+                  <button className="btn-primary" disabled={!uni} onClick={() => setStep(2)}>Далі</button>
+                  {canClose && <button className="btn-ghost" onClick={close}>Скасувати</button>}
+                </div>
+              )}
           </>
         )}
         {step === 2 && (
