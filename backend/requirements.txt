@@ -7,3 +7,4 @@ PyJWT[crypto]>=2.9
 anthropic>=0.70
 supabase>=2.6
 pytest>=8.0
+Pillow>=10.4

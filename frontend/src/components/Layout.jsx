@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, BookMarked, MessageCircle, BookOpen, ChevronDown, Home, LayoutGrid, LogOut, Menu, MessageCircleQuestion, PanelRight, Plus, Search, Settings, Shield, Sparkles, User, X } from "lucide-react";
@@ -14,6 +14,18 @@ import { useNotifications } from "../features/profile/pages.jsx";
 import { useUnreadMessages } from "../features/messages/MessagesPage.jsx";
 import { SoonChip } from "../features/ai/ComingSoon.jsx";
 import { FollowButton } from "../features/profile/UserProfile.jsx";
+
+function useMedia(query) {
+  const get = () => typeof window !== "undefined" && window.matchMedia(query).matches;
+  const [match, setMatch] = useState(get);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = () => setMatch(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [query]);
+  return match;
+}
 
 function UniversitySwitcher({ compact }) {
   const { me, activeUniversityId, switchUniversity } = useSession();
@@ -258,6 +270,9 @@ function MobileMenu({ onClose }) {
 }
 
 export default function Layout() {
+  // Одна копія навігації та 3D-агента замість трьох схованих через CSS (кожна мала б свій WebGL)
+  const isMd = useMedia("(min-width: 768px)");
+  const isXl = useMedia("(min-width: 1280px)");
   const [menu, setMenu] = useState(false);
   const [rail, setRail] = useState(false);
   const { pathname } = useLocation();
@@ -265,8 +280,8 @@ export default function Layout() {
   return (
     <div className="mx-auto max-w-app md:grid md:grid-cols-[76px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(600px,1fr)_320px] min-h-dvh">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 btn-primary">До вмісту</a>
-      <div className="hidden md:block xl:hidden border-r border-line"><LeftNav compact /></div>
-      <div className="hidden xl:block"><LeftNav /></div>
+      {isMd && !isXl && <div className="border-r border-line"><LeftNav compact /></div>}
+      {isXl && <div><LeftNav /></div>}
 
       {/* Мобільна шапка */}
       <div className="md:hidden sticky top-0 z-30 flex items-center justify-between px-3 h-14 bg-bg/90 backdrop-blur border-b border-line">
@@ -294,7 +309,7 @@ export default function Layout() {
       )}
       {menu && <MobileMenu onClose={() => setMenu(false)} />}
       <MobileBar />
-      <div className="md:hidden fixed left-2 bottom-[68px] z-20"><AgentMascot compact /></div>
+      {!isMd && <div className="fixed left-2 bottom-[68px] z-20"><AgentMascot compact /></div>}
       <Composer />
     </div>
   );

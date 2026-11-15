@@ -1,7 +1,7 @@
 """Конфігурація, профіль, університети, предмети, сповіщення, новини."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from app.api.context import Ctx, ctx
@@ -11,6 +11,7 @@ from app.core.deps import get_storage, get_store
 from app.schemas.content import JoinUniversity, ProfileUpdate, SubscriptionsSet
 from app.services import news as news_service
 from app.services import notifications
+from app.services.avatars import MAX_AVATAR_BYTES, remove_avatar, set_avatar
 from app.services.catalog import CatalogService
 
 router = APIRouter()
@@ -69,8 +70,29 @@ def join(university_id: str, data: JoinUniversity, c: Ctx = Depends(ctx)):
 
 
 @router.get("/subjects")
-def subjects(q: str | None = None, mine: bool = False, c: Ctx = Depends(ctx), uni: str = Depends(university_header)):
-    return CatalogService(c.store, c.access).subjects(uni, q, mine)
+def subjects(q: str | None = None, mine: bool = False, scope: str = Query("all", pattern="^(all|program|course)$"),
+             c: Ctx = Depends(ctx), uni: str = Depends(university_header)):
+    return CatalogService(c.store, c.access).subjects(uni, q, mine, scope)
+
+
+@router.post("/me/avatar")
+async def upload_avatar(file: UploadFile = File(...), c: Ctx = Depends(ctx)):
+    data = await file.read(MAX_AVATAR_BYTES + 1)
+    return set_avatar(c.store, c.user.id, data, get_storage())
+
+
+@router.delete("/me/avatar")
+def delete_avatar(c: Ctx = Depends(ctx)):
+    return remove_avatar(c.store, c.user.id, get_storage())
+
+
+@router.get("/public/{path:path}")
+def public_file(path: str):
+    """Демо-режим: публічні файли (аватари). У Supabase вони віддаються напряму зі Storage."""
+    f = getattr(get_storage(), "public_file", lambda p: None)(path)
+    if not f:
+        raise HTTPException(404, "Не знайдено")
+    return FileResponse(f, media_type="image/webp", headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @router.get("/subjects/{key}")

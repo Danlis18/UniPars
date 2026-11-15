@@ -40,7 +40,8 @@ class PostService:
         if not ids:
             return {}
         rows = self.s.select("profiles", [("id", "in", list(ids))])
-        return {r["id"]: {"id": r["id"], "display_name": r["display_name"], "avatar_url": r.get("avatar_url")} for r in rows}
+        return {r["id"]: {"id": r["id"], "display_name": r["display_name"], "avatar_url": r.get("avatar_url"),
+                          "is_bot": bool(r.get("is_bot"))} for r in rows}
 
     def enrich(self, posts: list[Row], full: bool = False) -> list[Row]:
         if not posts:

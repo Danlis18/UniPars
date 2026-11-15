@@ -34,4 +34,4 @@ def get_storage():
         return LocalStorage(s.demo_upload_dir, s.file_link_secret)
     from app.repositories.storage import SupabaseStorage
 
-    return SupabaseStorage(_supabase_store().client, s.storage_bucket)
+    return SupabaseStorage(_supabase_store().client, s.storage_bucket, s.supabase_url)

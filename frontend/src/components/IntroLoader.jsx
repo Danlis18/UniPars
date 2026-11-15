@@ -26,6 +26,8 @@ export default function IntroLoader({ ready, onDone }) {
 
   return (
     <div
+      // запасний шлях: заставка прибирається й після завершення анімації зникнення
+      onTransitionEnd={(e) => { if (leaving && e.target === e.currentTarget) onDone(); }}
       className={`fixed inset-0 z-[100] grid place-items-center bg-bg transition-all duration-500 ${leaving ? "opacity-0 scale-105 pointer-events-none" : "opacity-100"}`}
       role="status"
       aria-label="Завантаження UniPars"

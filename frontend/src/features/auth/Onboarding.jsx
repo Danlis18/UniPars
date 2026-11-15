@@ -34,7 +34,7 @@ export function StudyContextForm({ universityId, initial, submitLabel = "Дал�
   return (
     <form onSubmit={submit} className="space-y-3">
       <div>
-        <label className="label" htmlFor="o-fac">Факультет або підрозділ</label>
+        <label className="label" htmlFor="o-fac">Факультет *</label>
         <select id="o-fac" className="input" value={f.faculty_id} onChange={set("faculty_id")}>
           <option value="">Не обрано</option>
           {s.data?.faculties.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
@@ -42,14 +42,14 @@ export function StudyContextForm({ universityId, initial, submitLabel = "Дал�
       </div>
       <div className="grid sm:grid-cols-[1fr_120px] gap-3">
         <div>
-          <label className="label" htmlFor="o-prog">Спеціальність</label>
+          <label className="label" htmlFor="o-prog">Спеціальність / освітня програма *</label>
           <select id="o-prog" className="input" value={f.program_id} onChange={set("program_id")} disabled={!f.faculty_id}>
             <option value="">Не обрано</option>
             {programs.map((x) => <option key={x.id} value={x.id}>{x.code ? `${x.code} ` : ""}{x.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="label" htmlFor="o-course">Курс</label>
+          <label className="label" htmlFor="o-course">Курс *</label>
           <select id="o-course" className="input" value={f.course} onChange={set("course")}>
             <option value="">—</option>{[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
@@ -63,14 +63,15 @@ export function StudyContextForm({ universityId, initial, submitLabel = "Дал�
         </select>
       </div>
       {error && <div className="text-sm text-danger" role="alert">{error}</div>}
-      <button className="btn-primary" disabled={busy}>{busy ? "Збереження…" : submitLabel}</button>
+      <p className="text-xs text-muted">Курс оновлюється автоматично щороку 1 вересня. Змінити його можна в Налаштуваннях.</p>
+      <button className="btn-primary" disabled={busy || !f.faculty_id || !f.program_id || !f.course}>{busy ? "Збереження…" : submitLabel}</button>
     </form>
   );
 }
 
 function SubjectPicker({ onDone }) {
   const { activeUniversityId } = useSession();
-  const subjects = useQuery({ queryKey: ["subjects", activeUniversityId, "onb"], queryFn: () => api("/subjects") });
+  const subjects = useQuery({ queryKey: ["subjects", activeUniversityId, "onb"], queryFn: () => api("/subjects", { query: { scope: "course" } }) });
   const [picked, setPicked] = useState(new Set());
   useEffect(() => { if (subjects.data) setPicked(new Set(subjects.data.filter((s) => s.subscribed).map((s) => s.id))); }, [subjects.data]);
   if (subjects.isLoading) return <Loading />;
@@ -114,7 +115,8 @@ export default function Onboarding() {
         {step === 1 && (
           <>
             <h1 className="font-display text-xl mb-1">Оберіть університет</h1>
-            <p className="text-sm text-muted mb-4">Ви бачитимете матеріали, новини та запитання саме свого університету.</p>
+            <p className="text-sm text-muted mb-4">Ви бачитимете матеріали, новини та запитання саме свого університету.
+              Зараз реєстрація відкрита для <b>факультету електроніки та комп'ютерних технологій ЛНУ ім. Івана Франка</b>.</p>
             {unis.isLoading ? <Loading /> : (
               <div className="space-y-2 mb-4" role="radiogroup">
                 {unis.data?.filter((u) => !joining || !memberOf.has(u.id)).map((u) => (
@@ -144,7 +146,7 @@ export default function Onboarding() {
         {step === 3 && (
           <>
             <h1 className="font-display text-xl mb-1">Підпишіться на предмети</h1>
-            <p className="text-sm text-muted mb-4">Їхні матеріали та запитання з'являтимуться у вкладці «Мої предмети».</p>
+            <p className="text-sm text-muted mb-4">Це предмети вашого курсу за навчальним планом. Їхні матеріали та запитання з'являтимуться у вкладці «Мої предмети».</p>
             <SubjectPicker onDone={() => nav("/", { replace: true })} />
           </>
         )}

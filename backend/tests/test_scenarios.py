@@ -70,7 +70,7 @@ def test_student_cannot_escalate_role(client):
     r = client.patch(f"/api/admin/members/{OLENA}", json={"role": "admin"}, headers=as_user(OLENA, UNI_A))
     assert r.status_code == 403
     # «Вступ» повторно не змінює роль
-    client.post(f"/api/universities/{UNI_A}/join", json={}, headers=as_user(OLENA))
+    client.post(f"/api/universities/{UNI_A}/join", json={"faculty_id": did("fac:it"), "program_id": did("prog:cs"), "course": 2}, headers=as_user(OLENA))
     me = client.get("/api/me", headers=as_user(OLENA)).json()
     assert next(m for m in me["memberships"] if m["university_id"] == UNI_A)["role"] == "student"
 

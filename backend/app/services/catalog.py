@@ -3,9 +3,18 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
+from app.core import academic
 from app.repositories.store import Row, Store
 from app.schemas.content import JoinUniversity, ProfileUpdate
 from app.services.access import Access
+
+
+def _uni_open(u: Row) -> bool:
+    return bool((u.get("settings") or {}).get("registration_open", True))
+
+
+def _faculty_open(f: Row) -> bool:
+    return bool(f.get("registration_open", True))
 
 
 class CatalogService:
@@ -13,17 +22,42 @@ class CatalogService:
         self.s = store
         self.a = access
 
+    # ---------- Навчальний контекст ----------
+    def _refresh_membership(self, m: Row) -> Row:
+        """Поточний курс від року вступу; група автоматично «переходить» разом із курсом."""
+        course = academic.current_course(m)
+        m = {**m, "course": course}
+        if course and m.get("group_id"):
+            grp = self.s.get("study_groups", id=m["group_id"])
+            if grp and grp.get("course") and grp["course"] != course:
+                new_name = academic.group_for_course(grp["name"], course)
+                nxt = self.s.get("study_groups", university_id=m["university_id"], name=new_name) if new_name else None
+                if nxt:
+                    self.s.update("university_memberships", {"user_id": m["user_id"], "university_id": m["university_id"]},
+                                  {"group_id": nxt["id"], "course": course})
+                    m["group_id"] = nxt["id"]
+        return m
+
+    def my_context(self, university_id: str) -> Row:
+        m = self.a.membership(university_id)
+        if not m:
+            return {}
+        m = self._refresh_membership(m)
+        return {"program_id": m.get("program_id"), "course": m.get("course")}
+
     # ---------- Профіль ----------
     def me(self) -> Row:
         p = self.a.profile
         unis = {u["id"]: u for u in self.s.select("universities", [("id", "in", list(self.a.memberships))])} if self.a.memberships else {}
         memberships = []
         for uid, m in self.a.memberships.items():
+            m = self._refresh_membership(m)
             u = unis.get(uid, {})
             memberships.append({**m, "university": {"id": uid, "name": u.get("name"), "short_name": u.get("short_name"),
                                                     "is_demo": u.get("is_demo", False)}})
         return {
-            "id": p["id"], "display_name": p.get("display_name"), "avatar_url": p.get("avatar_url"), "bio": p.get("bio", ""), "telegram": p.get("telegram"), "cover": p.get("cover"),
+            "id": p["id"], "display_name": p.get("display_name"), "avatar_url": p.get("avatar_url"), "bio": p.get("bio", ""),
+            "telegram": p.get("telegram"), "cover": p.get("cover"),
             "theme": p.get("theme", "system"), "locale": p.get("locale", "uk"),
             "active_university_id": p.get("active_university_id") if p.get("active_university_id") in self.a.memberships else
             (next(iter(self.a.memberships), None)),
@@ -44,37 +78,51 @@ class CatalogService:
 
     # ---------- Університети ----------
     def universities(self) -> list[Row]:
-        return [{k: u[k] for k in ("id", "name", "short_name", "slug", "is_demo")}
-                for u in self.s.select("universities", order="name")]
+        """Для реєстрації — лише університети з відкритою реєстрацією (та ті, де користувач уже є)."""
+        rows = self.s.select("universities", order="name")
+        visible = [u for u in rows if _uni_open(u) or u["id"] in self.a.memberships or self.a.is_platform_admin]
+        return [{k: u[k] for k in ("id", "name", "short_name", "slug", "is_demo")} for u in visible]
 
     def structure(self, university_id: str) -> Row:
-        if not self.s.get("universities", id=university_id):
+        uni = self.s.get("universities", id=university_id)
+        if not uni:
             raise HTTPException(404, "Університет не знайдено")
         f = [("university_id", "eq", university_id)]
-        return {"faculties": self.s.select("faculties", f, order="name"),
-                "programs": self.s.select("programs", f, order="name"),
-                "groups": self.s.select("study_groups", f, order="name")}
+        mine = (self.a.membership(university_id) or {}).get("faculty_id")
+        faculties = [x for x in self.s.select("faculties", f, order="name")
+                     if _faculty_open(x) or x["id"] == mine or self.a.is_platform_admin]
+        fac_ids = {x["id"] for x in faculties}
+        programs = [p for p in self.s.select("programs", f, order="name") if p["faculty_id"] in fac_ids]
+        prog_ids = {p["id"] for p in programs}
+        groups = [g for g in self.s.select("study_groups", f, order="name") if g["program_id"] in prog_ids]
+        return {"faculties": faculties, "programs": programs, "groups": groups}
 
     def join(self, university_id: str, data: JoinUniversity) -> Row:
-        if not self.s.get("universities", id=university_id):
+        uni = self.s.get("universities", id=university_id)
+        if not uni:
             raise HTTPException(404, "Університет не знайдено")
+        existing = self.a.membership(university_id)
+        if not existing and not _uni_open(uni) and not self.a.is_platform_admin:
+            raise HTTPException(403, "Реєстрація в цьому університеті поки закрита")
+        if not (data.faculty_id and data.program_id and data.course):
+            raise HTTPException(400, "Оберіть факультет, спеціальність і курс")
         checks = (("faculties", data.faculty_id), ("programs", data.program_id), ("study_groups", data.group_id))
+        rows = {}
         for table, oid in checks:
             if oid:
                 row = self.s.get(table, id=oid)
                 if not row or row["university_id"] != university_id:
                     raise HTTPException(400, "Обраний підрозділ не належить університету")
-        if data.program_id and data.faculty_id:
-            prog = self.s.get("programs", id=data.program_id)
-            if prog["faculty_id"] != data.faculty_id:
-                raise HTTPException(400, "Спеціальність не належить факультету")
-        if data.group_id and data.program_id:
-            grp = self.s.get("study_groups", id=data.group_id)
-            if grp["program_id"] != data.program_id:
-                raise HTTPException(400, "Група не належить спеціальності")
+                rows[table] = row
+        fac = rows["faculties"]
+        if not _faculty_open(fac) and fac["id"] != (existing or {}).get("faculty_id") and not self.a.is_platform_admin:
+            raise HTTPException(403, "Реєстрація на цьому факультеті поки закрита")
+        if rows["programs"]["faculty_id"] != data.faculty_id:
+            raise HTTPException(400, "Спеціальність не належить факультету")
+        if data.group_id and rows["study_groups"]["program_id"] != data.program_id:
+            raise HTTPException(400, "Група не належить спеціальності")
         context = {"faculty_id": data.faculty_id, "program_id": data.program_id, "group_id": data.group_id,
-                   "course": data.course, "onboarded": True}
-        existing = self.a.membership(university_id)
+                   "course": data.course, "entry_year": academic.entry_from_course(data.course), "onboarded": True}
         if existing:
             # Роль не змінюється: оновлюємо лише навчальний контекст
             self.s.update("university_memberships", {"user_id": self.a.user_id, "university_id": university_id}, context)
@@ -87,7 +135,8 @@ class CatalogService:
         return self.me()
 
     # ---------- Предмети ----------
-    def subjects(self, university_id: str, q: str | None = None, mine: bool = False) -> list[Row]:
+    def subjects(self, university_id: str, q: str | None = None, mine: bool = False, scope: str = "all") -> list[Row]:
+        """scope: all — усі предмети; program — моєї спеціальності; course — моєї спеціальності на моєму курсі."""
         self.a.require_member(university_id)
         f = [("university_id", "eq", university_id)]
         if q:
@@ -100,15 +149,27 @@ class CatalogService:
             if self.a.can_view_post(p):
                 counts[p["subject_id"]] = counts.get(p["subject_id"], 0) + 1
         links = self.s.select("subject_programs", [("university_id", "eq", university_id)])
+        ctx = self.my_context(university_id) if scope in ("program", "course") else {}
         out = []
         for r in rows:
             if mine and r["id"] not in subs:
                 continue
             sp = [x for x in links if x["subject_id"] == r["id"]]
+            courses_all = sorted({c for x in sp for c in (x.get("courses") or ([x["course"]] if x.get("course") else []))})
+            if ctx.get("program_id"):
+                own = [x for x in sp if x["program_id"] == ctx["program_id"]]
+                if not own:
+                    continue
+                own_courses = {c for x in own for c in (x.get("courses") or ([x["course"]] if x.get("course") else []))}
+                if scope == "course" and ctx.get("course") and own_courses and ctx["course"] not in own_courses:
+                    continue
+                elective = all(x.get("is_elective") for x in own)
+            else:
+                elective = bool(sp) and all(x.get("is_elective") for x in sp)
             out.append({**r, "subscribed": r["id"] in subs, "post_count": counts.get(r["id"], 0),
-                        "courses": sorted({x["course"] for x in sp if x.get("course")}),
-                        "semesters": sorted({x["semester"] for x in sp if x.get("semester")}),
-                        "program_ids": [x["program_id"] for x in sp]})
+                        "courses": courses_all,
+                        "semesters": sorted({s for x in sp for s in (x.get("semesters") or ([x["semester"]] if x.get("semester") else []))}),
+                        "program_ids": [x["program_id"] for x in sp], "is_elective": elective})
         return out
 
     def subject(self, university_id: str, key: str) -> Row:

@@ -71,7 +71,7 @@ export function QuestionsPage() {
   const status = params.get("status") || undefined;
   const subject_id = params.get("subject") || undefined;
   const { activeUniversityId } = useSession();
-  const subjects = useQuery({ queryKey: ["subjects", activeUniversityId, ""], queryFn: () => api("/subjects") });
+  const subjects = useQuery({ queryKey: ["subjects", activeUniversityId, "", "program"], queryFn: () => api("/subjects", { query: { scope: "program" } }) });
   const { open } = useComposer();
   const [, setParams] = useSearchParams();
   return (
@@ -99,7 +99,7 @@ export function QuestionsPage() {
 export function MaterialsPage() {
   const [params, setParams] = useSearchParams();
   const { activeUniversityId } = useSession();
-  const subjects = useQuery({ queryKey: ["subjects", activeUniversityId, ""], queryFn: () => api("/subjects") });
+  const subjects = useQuery({ queryKey: ["subjects", activeUniversityId, "", "program"], queryFn: () => api("/subjects", { query: { scope: "program" } }) });
   const get = (k) => params.get(k) || "";
   const setP = (k) => (e) => setParams((p) => { e.target.value ? p.set(k, e.target.value) : p.delete(k); return p; }, { replace: true });
   return (

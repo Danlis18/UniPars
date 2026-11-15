@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, GraduationCap, Heart, Pencil, Send, Settings, UserCheck, UserPlus } from "lucide-react";
-import { api } from "../../lib/api.js";
+import { Bot, Camera, CalendarDays, GraduationCap, Heart, Pencil, Send, Settings, UserCheck, UserPlus } from "lucide-react";
+import { api, uploadFile } from "../../lib/api.js";
 import { useSession } from "../../app/session.jsx";
-import { Avatar, Empty, ErrorState, Loading, Modal, useToast } from "../../components/ui.jsx";
+import { Avatar, Empty, ErrorState, Loading, Modal, useConfirm, useToast } from "../../components/ui.jsx";
 import { PageHeader, UrlTabs } from "../../components/PageHeader.jsx";
 import PostList from "../feed/PostList.jsx";
 import { CoverPicker, ProfileCover } from "./Covers.jsx";
@@ -36,29 +36,87 @@ export function FollowButton({ user, size = "md", onChange }) {
   );
 }
 
-function PeopleList({ userId, kind, onClose }) {
+export function BotChip() {
+  return <span className="chip bg-sunken text-muted border border-line" title="Автоматичний акаунт UniPars"><Bot size={11} /> Бот</span>;
+}
+
+function PeopleRows({ userId, kind, onNavigate }) {
   const q = useQuery({ queryKey: ["user", userId, kind], queryFn: () => api(`/users/${userId}/${kind}`) });
+  if (q.isLoading) return <Loading />;
+  if (q.isError) return <ErrorState error={q.error} onRetry={q.refetch} />;
+  if (!q.data.length) return <Empty title={kind === "followers" ? "Поки немає читачів" : "Поки ні на кого не підписаний"} />;
+  return (
+    <ul className="py-1">
+      {q.data.map((u) => (
+        <li key={u.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-sunken/40">
+          <Link to={`/u/${u.id}`} onClick={onNavigate} className="flex items-center gap-3 flex-1 min-w-0">
+            <Avatar user={u} size={44} ring={!u.is_bot} />
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5 font-semibold"><span className="truncate">{u.display_name}</span>{u.is_bot && <BotChip />}</span>
+              <span className="block text-xs text-muted truncate">{u.bio}</span>
+            </span>
+          </Link>
+          {!u.is_bot && <FollowButton user={u} size="sm" />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PeopleList({ userId, kind, onClose }) {
   return (
     <Modal open onClose={onClose} title={kind === "followers" ? "Читачі" : "Читає"}>
-      {q.isLoading ? <Loading /> : q.isError ? <ErrorState error={q.error} /> : !q.data.length ? (
-        <Empty title={kind === "followers" ? "Поки немає читачів" : "Поки ні на кого не підписаний"} />
-      ) : (
-        <ul className="py-1">
-          {q.data.map((u) => (
-            <li key={u.id} className="flex items-center gap-3 px-4 py-2.5">
-              <Link to={`/u/${u.id}`} onClick={onClose} className="flex items-center gap-3 flex-1 min-w-0">
-                <Avatar user={u} size={42} ring />
-                <span className="min-w-0">
-                  <span className="block font-semibold truncate">{u.display_name}</span>
-                  <span className="block text-xs text-muted truncate">{u.bio}</span>
-                </span>
-              </Link>
-              <FollowButton user={u} size="sm" />
-            </li>
-          ))}
-        </ul>
-      )}
+      <PeopleRows userId={userId} kind={kind} onNavigate={onClose} />
     </Modal>
+  );
+}
+
+function AvatarEditor({ profile }) {
+  const { refreshMe } = useSession();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const input = useRef(null);
+  const [progress, setProgress] = useState(null);
+  const [url, setUrl] = useState(profile.avatar_url);
+  const refresh = () => { refreshMe(); qc.invalidateQueries({ queryKey: ["user"] }); qc.invalidateQueries({ queryKey: ["posts"] }); };
+  const pick = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return toast("Оберіть зображення: JPG, PNG або WEBP", "error");
+    if (file.size > 8 * 1024 * 1024) return toast("Фото завелике. Максимум 8 МБ", "error");
+    setProgress(0);
+    try {
+      const r = await uploadFile("/me/avatar", file, setProgress);
+      setUrl(r.avatar_url);
+      refresh();
+      toast("Фото профілю оновлено");
+    } catch (e) { toast(e.message, "error"); }
+    setProgress(null);
+  };
+  const remove = async () => {
+    if (!(await confirm({ title: "Прибрати фото профілю?", message: "Замість фото показуватимуться ваші ініціали.", confirmLabel: "Прибрати", danger: true }))) return;
+    await api("/me/avatar", { method: "DELETE" });
+    setUrl(null);
+    refresh();
+  };
+  return (
+    <div className="flex items-center gap-4">
+      <div className="relative">
+        <Avatar user={{ ...profile, avatar_url: url }} size={76} ring />
+        {progress !== null && (
+          <div className="absolute inset-0 rounded-full bg-black/50 grid place-items-center text-white text-xs font-bold">{progress}%</div>
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5 items-start">
+        <button type="button" className="btn-ghost h-9" onClick={() => input.current?.click()} disabled={progress !== null}>
+          <Camera size={15} /> {url ? "Змінити фото" : "Додати фото"}
+        </button>
+        {url && <button type="button" className="text-xs text-muted hover:text-danger" onClick={remove}>Прибрати фото</button>}
+        <span className="text-[11px] text-muted">JPG, PNG або WEBP до 8 МБ. Ми обріжемо до квадрата.</span>
+      </div>
+      <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden
+        onChange={(e) => { pick(e.target.files[0]); e.target.value = ""; }} />
+    </div>
   );
 }
 
@@ -80,6 +138,7 @@ function EditProfile({ profile, onClose }) {
   return (
     <Modal open onClose={onClose} title="Редагувати профіль">
       <form className="p-4 space-y-3" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+        <AvatarEditor profile={profile} />
         <div><label className="label" htmlFor="e-name">Ім'я</label>
           <input id="e-name" className="input" value={f.display_name} onChange={(e) => setF({ ...f, display_name: e.target.value })} maxLength={80} required /></div>
         <div><label className="label" htmlFor="e-bio">Про себе</label>
@@ -152,7 +211,7 @@ export default function UserProfile() {
               ) : <><MessageButton user={p} /><FollowButton user={p} /></>}
             </div>
           </div>
-          <h2 className="font-display text-2xl mt-3 break-words">{p.display_name}</h2>
+          <h2 className="font-display text-2xl mt-3 break-words flex items-center gap-2">{p.display_name}{p.is_bot && <BotChip />}</h2>
           {p.follows_you && <span className="chip bg-sunken text-muted mt-1">Читає вас</span>}
           {p.bio && <p className="mt-2 text-[15px] whitespace-pre-wrap break-words">{p.bio}</p>}
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-muted">
@@ -179,10 +238,13 @@ export default function UserProfile() {
         <UrlTabs param="tab" defaultValue="posts" tabs={[
           { value: "posts", label: "Усе" }, { value: "materials", label: "Роботи" },
           { value: "questions", label: "Запитання" }, { value: "explanations", label: "Пояснення" },
+          { value: "followers", label: `Читачі · ${p.followers}` }, { value: "following", label: `Читає · ${p.following}` },
         ]} />
       </div>
+      {tab === "followers" || tab === "following" ? <PeopleRows userId={p.id} kind={tab} /> : (
       <PostList query={{ author_id: p.id, type, tab: "university" }}
         empty={<Empty title={p.is_me ? "Ви ще нічого не публікували" : "Тут поки порожньо"}>{p.is_me ? "Поділіться конспектом, лабораторною або поставте запитання." : null}</Empty>} />
+      )}
       {list && <PeopleList userId={p.id} kind={list} onClose={() => setList(null)} />}
       {editing && <EditProfile profile={p} onClose={() => setEditing(false)} />}
     </>

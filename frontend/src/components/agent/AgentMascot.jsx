@@ -15,10 +15,22 @@ function AgentCanvas({ size, onActivate, hint }) {
   const stateRef = useRef({ hover: false, jump: 0 });
 
   useEffect(() => {
+    // 3D запускається, коли браузер вільний (після першого показу сайту) — не гальмує завантаження
+    let cancelled = false;
+    let cleanup = () => {};
+    const start = () => {
+    if (cancelled) return;
     const mount = mountRef.current;
+    if (!mount) return;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min((window.devicePixelRatio || 1) * 2, 4));
+    // Програмний рендер (без GPU) — малюємо статичний кадр, щоб не навантажувати процесор
+    const gl = renderer.getContext();
+    const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+    const gpu = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : "";
+    const software = /swiftshader|llvmpipe|software|basic render/i.test(gpu);
+    const still = reduced || software;
+    renderer.setPixelRatio(software ? 1 : Math.min((window.devicePixelRatio || 1) * 1.5, 3));
     renderer.setSize(size.w, size.h);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -60,11 +72,14 @@ function AgentCanvas({ size, onActivate, hint }) {
 
     const clock = new THREE.Clock();
     let raf;
+    let last = 0;
     const yaw = { v: 0 }, pitch = { v: 0 };
-    const loop = () => {
-      raf = requestAnimationFrame(loop);
+    const loop = (now = 0) => {
+      if (!still) raf = requestAnimationFrame(loop);
       if (!visible || document.hidden) return;
-      const t = reduced ? 0 : clock.getElapsedTime();
+      if (!still && now - last < 1000 / 45) return; // не більше 45 кадрів/с
+      last = now;
+      const t = still ? 0 : clock.getElapsedTime();
       const st = stateRef.current;
 
       // стрибок після кліку (затухаюча пружина)
@@ -112,8 +127,9 @@ function AgentCanvas({ size, onActivate, hint }) {
     };
     loop();
 
-    stateRef.current.poke = () => (stateRef.current.jump = 1);
-    return () => {
+    stateRef.current.poke = () => { stateRef.current.jump = 1; if (still) loop(); };
+    stateRef.current.redraw = () => { if (still) loop(); };
+    cleanup = () => {
       cancelAnimationFrame(raf);
       io.disconnect();
       window.removeEventListener("pointermove", onMove);
@@ -123,6 +139,17 @@ function AgentCanvas({ size, onActivate, hint }) {
       renderer.dispose();
       renderer.domElement.remove();
     };
+    };
+    // Спершу сторінка завантажує свої дані, потім — у вільний момент — агент
+    const ric = window.requestIdleCallback;
+    let idle = null;
+    const delay = setTimeout(() => { idle = ric ? ric(start, { timeout: 3000 }) : setTimeout(start, 0); }, 1800);
+    return () => {
+      cancelled = true;
+      clearTimeout(delay);
+      if (idle !== null) { if (ric) window.cancelIdleCallback(idle); else clearTimeout(idle); }
+      cleanup();
+    };
   }, [size.w, size.h]);
 
   return (
@@ -130,7 +157,7 @@ function AgentCanvas({ size, onActivate, hint }) {
       type="button"
       ref={mountRef}
       onClick={() => { stateRef.current.poke?.(); onActivate(); }}
-      onPointerEnter={() => (stateRef.current.hover = true)}
+      onPointerEnter={() => { stateRef.current.hover = true; stateRef.current.redraw?.(); }}
       onPointerLeave={() => (stateRef.current.hover = false)}
       className="relative block rounded-3xl focus-visible:outline-2"
       style={{ width: size.w, height: size.h }}

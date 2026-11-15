@@ -38,7 +38,7 @@ def seed(store) -> None:  # noqa: C901 — лінійний сценарій з�
     fac_it, fac_econ = did("fac:it"), did("fac:econ")
     store.bulk("faculties", [
         {"id": fac_it, "university_id": UNI_A, "name": "Факультет інформаційних технологій"},
-        {"id": did("fac:phys"), "university_id": UNI_A, "name": "Фізико-технічний факультет"},
+        {"id": did("fac:phys"), "university_id": UNI_A, "name": "Фізико-технічний факультет", "registration_open": False},
         {"id": fac_econ, "university_id": UNI_B, "name": "Економічний факультет"},
     ])
     prog_cs, prog_se, prog_econ = did("prog:cs"), did("prog:se"), did("prog:econ")

@@ -61,6 +61,8 @@ class Settings:
     max_upload_mb: int = 25
     file_link_secret: str = "change-me"
     news_sync_interval_seconds: int = 600
+    bots_count: int = 8
+    bots_interval_seconds: int = 300
     cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:5173"])
     demo_upload_dir: Path = Path(__file__).resolve().parents[2] / ".demo_uploads"
 
@@ -93,6 +95,8 @@ def get_settings() -> Settings:
         max_upload_mb=_int("MAX_UPLOAD_MB", 25),
         file_link_secret=e("FILE_LINK_SECRET", "change-me"),
         news_sync_interval_seconds=_int("NEWS_SYNC_INTERVAL_SECONDS", 600),
+        bots_count=_int("BOTS_COUNT", 8),
+        bots_interval_seconds=max(60, _int("BOTS_INTERVAL_SECONDS", 300)),
         # Браузер надсилає Origin без «/» у кінці — нормалізуємо, щоб не було помилок CORS
         cors_origins=[_origin(o) for o in e("CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()],
     )

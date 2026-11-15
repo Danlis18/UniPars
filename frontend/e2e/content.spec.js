@@ -145,3 +145,35 @@ test.describe("Соцфункції та повідомлення", () => {
     await expect(page).toHaveURL(/\/materials/);
   });
 });
+
+test.describe("Профіль: аватар, читачі, предмети курсу", () => {
+  test("зміна фото профілю: завантаження, стиснення, показ", async ({ page, request }) => {
+    await loginAs(page, request, "Максим", "/u/me");
+    await page.getByRole("button", { name: "Редагувати" }).click();
+    // мінімальний валідний PNG 1×1
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+    await page.getByRole("dialog").locator("input[type=file][accept^='image']").setInputFiles({ name: "me.png", mimeType: "image/png", buffer: png });
+    await expect(page.getByText("Фото профілю оновлено")).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "Змінити фото" })).toBeVisible();
+    const src = await page.getByRole("dialog").locator("img").first().getAttribute("src");
+    expect(src).toContain("/api/public/");
+    expect((await request.get(src)).headers()["content-type"]).toBe("image/webp");
+  });
+
+  test("вкладки «Читачі» і «Читає» у профілі", async ({ page, request }) => {
+    const iryna = await loginAs(page, request, "Ірина");
+    await loginAs(page, request, "Максим", `/u/${iryna.id}?tab=followers`);
+    await expect(page.getByRole("tab", { name: /Читачі/ })).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator("#main").getByRole("link", { name: /Олена Коваль/ })).toBeVisible();
+    await page.getByRole("tab", { name: /Читає/ }).click();
+    await expect(page.locator("#main").getByRole("link", { name: /Андрій Мельник/ })).toBeVisible();
+  });
+
+  test("каталог показує предмети мого курсу, а «Усі» — повний перелік", async ({ page, request }) => {
+    await loginAs(page, request, "Олена", "/subjects");
+    await expect(page.getByRole("tab", { name: "Мій курс" })).toHaveAttribute("aria-selected", "true");
+    const mine = await page.locator("#main ul > li").count();
+    await page.getByRole("tab", { name: "Усі" }).click();
+    await expect.poll(() => page.locator("#main ul > li").count()).toBeGreaterThan(mine);
+  });
+});

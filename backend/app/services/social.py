@@ -15,7 +15,8 @@ class SocialService:
 
     def _card(self, p: Row, following: set[str]) -> Row:
         return {"id": p["id"], "display_name": p.get("display_name"), "avatar_url": p.get("avatar_url"),
-                "bio": (p.get("bio") or "")[:160], "is_following": p["id"] in following, "is_me": p["id"] == self.a.user_id}
+                "bio": (p.get("bio") or "")[:160], "is_following": p["id"] in following, "is_me": p["id"] == self.a.user_id,
+                "is_bot": bool(p.get("is_bot"))}
 
     def _my_following(self) -> set[str]:
         return {r["following_id"] for r in self.s.select("follows", [("follower_id", "eq", self.a.user_id)])}
@@ -45,17 +46,21 @@ class SocialService:
         return {
             "id": p["id"], "display_name": p.get("display_name"), "avatar_url": p.get("avatar_url"), "bio": p.get("bio") or "",
             "telegram": p.get("telegram"), "cover": p.get("cover"), "created_at": p.get("created_at"),
+            "is_bot": bool(p.get("is_bot")),
             "followers": followers, "following": following, "posts": len(posts),
             "useful": sum(x.get("useful_count", 0) for x in posts),
             "is_me": user_id == self.a.user_id, "is_following": is_following, "follows_you": follows_you,
             # Писати можна тому, хто підписаний на вас, або якщо діалог уже існує
-            "can_message": user_id != self.a.user_id and (follows_you or bool(self.s.get("dm_conversations", pair_key=":".join(sorted((user_id, self.a.user_id)))))),
+            "can_message": user_id != self.a.user_id and not p.get("is_bot") and (follows_you or bool(self.s.get("dm_conversations", pair_key=":".join(sorted((user_id, self.a.user_id)))))),
             "context": context,
         }
 
     def toggle_follow(self, user_id: str) -> Row:
         if user_id == self.a.user_id:
             raise HTTPException(400, "Не можна підписатися на себе")
+        target = self.s.get("profiles", id=user_id)
+        if target and target.get("is_bot"):
+            raise HTTPException(400, "На ботів підписатися не можна")
         if not self.s.get("profiles", id=user_id):
             raise HTTPException(404, "Користувача не знайдено")
         key = {"follower_id": self.a.user_id, "following_id": user_id}
@@ -89,7 +94,7 @@ class SocialService:
             f.append(("display_name", "search", (["display_name"], q.strip()[:60])))
         profiles = self.s.select("profiles", f, limit=500)
         mine = self._my_following()
-        out = [p for p in profiles if p["id"] != self.a.user_id and not (suggest and p["id"] in mine)]
+        out = [p for p in profiles if p["id"] != self.a.user_id and not p.get("is_bot") and not (suggest and p["id"] in mine)]
         if suggest:
             counts = {}
             for r in self.s.select("follows", [("following_id", "in", [p["id"] for p in out])]):

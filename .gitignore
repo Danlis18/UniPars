@@ -10,3 +10,4 @@ backend/.demo_uploads/
 frontend/test-results/
 frontend/playwright-report/
 frontend/e2e-run.log
+frontend/repro.log

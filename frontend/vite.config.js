@@ -8,6 +8,8 @@ export default defineConfig({
     proxy: { "/api": { target: process.env.API_PROXY_TARGET || "http://127.0.0.1:8000", changeOrigin: true } },
   },
   build: {
+    sourcemap: process.env.SOURCEMAP === "1",
+    minify: process.env.SOURCEMAP !== "1", // для діагностики — читабельні імена функцій
     rollupOptions: {
       output: {
         manualChunks: {

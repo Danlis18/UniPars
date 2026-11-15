@@ -31,15 +31,19 @@ function rng(seed) {
   return () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 }
 
-// Текстура обличчя 4096×2048: шкіра, брови, рот «:3», схеми; окремо — карта світіння
+// Текстура обличчя (логічно 4096×2048): шкіра, брови, рот «:3», схеми; окремо — карта світіння
 function faceTextures() {
-  const W = 4096, H = 2048;
+  // Логічні координати 4096×2048, фактична текстура 2048×1024 — на екрані агент ~150 px,
+  // різниці не видно, а пам'яті й часу ініціалізації вчетверо менше
+  const W = 4096, H = 2048, TEX = 0.5;
   const skin = document.createElement("canvas");
   const glow = document.createElement("canvas");
-  skin.width = glow.width = W;
-  skin.height = glow.height = H;
+  skin.width = glow.width = W * TEX;
+  skin.height = glow.height = H * TEX;
   const s = skin.getContext("2d");
   const g = glow.getContext("2d");
+  s.scale(TEX, TEX);
+  g.scale(TEX, TEX);
   s.fillStyle = "#fff6ee";
   s.fillRect(0, 0, W, H);
   g.fillStyle = "#000";

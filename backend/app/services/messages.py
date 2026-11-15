@@ -87,8 +87,11 @@ class MessageService:
     def open_with(self, other: str) -> Row:
         if other == self.me:
             raise HTTPException(400, "Не можна написати самому собі")
-        if not self.s.get("profiles", id=other):
+        target = self.s.get("profiles", id=other)
+        if not target:
             raise HTTPException(404, "Користувача не знайдено")
+        if target.get("is_bot"):
+            raise HTTPException(403, "Ботам писати не можна")
         conv = self.s.get("dm_conversations", pair_key=_pair(self.me, other))
         if not conv:
             if not self.can_start(other):

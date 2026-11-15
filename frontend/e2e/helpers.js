@@ -12,6 +12,11 @@ export async function demoUser(request, namePrefix) {
 }
 
 export async function loginAs(page, request, namePrefix, path = "/") {
+  if (!page.__errorsHooked) {
+    page.__errorsHooked = true;
+    // помилки застосунку потрапляють у звіт — так їх легше відстежити
+    page.on("pageerror", (e) => console.log("[pageerror] " + (e.stack || e.message).split("\n").slice(0, 9).join("\n")));
+  }
   const u = await demoUser(request, namePrefix);
   await page.goto("/");
   await page.evaluate((id) => localStorage.setItem("unipars.demoUser", JSON.stringify(id)), u.id);

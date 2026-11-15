@@ -39,7 +39,7 @@ export default defineConfig({
       // Тестуємо продакшн-збірку, як на бойовому сайті (vite preview успадковує проксі /api)
       command: `npx vite build && npx vite preview --port ${WEB_PORT} --strictPort`,
       url: `http://localhost:${WEB_PORT}`,
-      env: { API_PROXY_TARGET: `http://127.0.0.1:${API_PORT}` },
+      env: { API_PROXY_TARGET: `http://127.0.0.1:${API_PORT}`, SOURCEMAP: process.env.SOURCEMAP || "" },
       reuseExistingServer: false,
       timeout: 180_000,
     },

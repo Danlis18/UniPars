@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import admin, ai, core, messages, posts, social
 from app.core.config import get_settings
 from app.core.deps import get_store
+from app.services.bots import bots_loop
 from app.services.news import periodic_sync
 
 logging.basicConfig(level=logging.INFO)
@@ -19,9 +20,11 @@ logging.basicConfig(level=logging.INFO)
 async def lifespan(app: FastAPI):
     s = get_settings()
     task = asyncio.create_task(periodic_sync(get_store, s.news_sync_interval_seconds))
+    bots_task = asyncio.create_task(bots_loop(get_store, s))
     logging.getLogger("unipars").info("UniPars API: mode=%s, ai=%s", s.app_mode, "on" if s.ai_enabled else "off")
     yield
     task.cancel()
+    bots_task.cancel()
 
 
 app = FastAPI(title="UniPars API", version="1.0.0", lifespan=lifespan)
@@ -66,13 +69,22 @@ def health(deep: bool = False):
         except Exception:
             schema[table] = "missing"
             out["ok"] = False
-    # Міграція 5: колонка обкладинки профілю
+    # Колонки з пізніших міграцій
+    for key, table, col in (("profiles.cover", "profiles", "cover"),
+                            ("subject_programs.courses", "subject_programs", "courses"),
+                            ("profiles.is_bot", "profiles", "is_bot"),
+                            ("university_memberships.entry_year", "university_memberships", "entry_year"),
+                            ("faculties.registration_open", "faculties", "registration_open")):
+        try:
+            get_store().count(table, [(col, "is_null", False)])
+            schema[key] = "ok"
+        except Exception:
+            schema[key] = "missing"
+            out["ok"] = False
     try:
-        get_store().count("profiles", [("cover", "is_null", False)])
-        schema["profiles.cover"] = "ok"
+        schema["bots"] = get_store().count("profiles", [("is_bot", "eq", True)])
     except Exception:
-        schema["profiles.cover"] = "missing"
-        out["ok"] = False
+        schema["bots"] = "missing"
     out["schema"] = schema
     try:
         r = httpx.get(f"{s.supabase_url}/auth/v1/.well-known/jwks.json", timeout=10,

@@ -55,7 +55,11 @@ function ComposerDialog({ type: initialType, onClose, presetSubject }) {
   // Чернетка зберігається автоматично — не загубиться при випадковому закритті
   useEffect(() => { if (stage === "edit") local.set(draftKey, form); }, [form, draftKey, stage]);
 
-  const subjects = useQuery({ queryKey: ["subjects", activeUniversityId, ""], queryFn: () => api("/subjects") });
+  const [allCourses, setAllCourses] = useState(false);
+  const subjects = useQuery({
+    queryKey: ["subjects", activeUniversityId, "", allCourses ? "program" : "course"],
+    queryFn: () => api("/subjects", { query: { scope: allCourses ? "program" : "course" } }),
+  });
   const subject = useQuery({
     queryKey: ["subject", activeUniversityId, form.subject_id],
     queryFn: () => api(`/subjects/${form.subject_id}`),
@@ -157,6 +161,11 @@ function ComposerDialog({ type: initialType, onClose, presetSubject }) {
               <option value="">Оберіть предмет</option>
               {subjects.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
+            {!createdId && (
+              <label className="flex items-center gap-1.5 mt-1 text-[11px] text-muted cursor-pointer">
+                <input type="checkbox" checked={allCourses} onChange={(e) => setAllCourses(e.target.checked)} /> Показати предмети всіх курсів моєї спеціальності
+              </label>
+            )}
           </div>
           <div>
             <label className="label" htmlFor="c-topic">Тема</label>

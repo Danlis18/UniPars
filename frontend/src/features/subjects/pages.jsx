@@ -31,8 +31,10 @@ export function SubjectsPage() {
   const { activeUniversityId } = useSession();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") || "";
-  const mine = params.get("view") === "mine";
-  const list = useQuery({ queryKey: ["subjects", activeUniversityId, q, mine], queryFn: () => api("/subjects", { query: { q, mine: mine || undefined } }) });
+  const view = params.get("view") || "course";
+  const mine = view === "mine";
+  const scope = { course: "course", program: "program" }[view] || "all";
+  const list = useQuery({ queryKey: ["subjects", activeUniversityId, q, view], queryFn: () => api("/subjects", { query: { q, mine: mine || undefined, scope } }) });
   return (
     <>
       <PageHeader title="Предмети" subtitle="Каталог дисциплін університету">
@@ -43,16 +45,22 @@ export function SubjectsPage() {
               onChange={(e) => setParams((p) => { e.target.value ? p.set("q", e.target.value) : p.delete("q"); return p; }, { replace: true })} />
           </label>
         </div>
-        <UrlTabs param="view" defaultValue="all" tabs={[{ value: "all", label: "Усі" }, { value: "mine", label: "Мої підписки" }]} />
+        <UrlTabs param="view" defaultValue="course" tabs={[
+          { value: "course", label: "Мій курс" }, { value: "program", label: "Моя спеціальність" },
+          { value: "mine", label: "Підписки" }, { value: "all", label: "Усі" },
+        ]} />
       </PageHeader>
       {list.isLoading ? <Loading /> : list.isError ? <ErrorState error={list.error} onRetry={list.refetch} /> : !list.data.length ? (
-        <Empty title={mine ? "Ви ще не підписані на предмети" : "Предметів не знайдено"} />
+        <Empty title={mine ? "Ви ще не підписані на предмети" : "Предметів не знайдено"}>
+          {view === "course" ? "Перевірте спеціальність і курс у Налаштуваннях або перегляньте вкладку «Моя спеціальність»." : null}
+        </Empty>
       ) : (
         <ul className="grid sm:grid-cols-2 gap-3 p-4">
           {list.data.map((s) => (
             <li key={s.id}>
               <Link to={`/subjects/${s.slug}`} className="card p-4 flex flex-col gap-2 h-full hover:border-primary transition-colors">
-                <div className="font-semibold leading-snug break-words">{s.name}</div>
+                <div className="font-semibold leading-snug break-words">{s.name}
+                  {s.is_elective && <span className="chip bg-sunken text-muted ml-1.5 align-middle">за вибором</span>}</div>
                 <div className="text-sm text-muted line-clamp-2 flex-1">{s.description}</div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-muted">{s.post_count} дописів{s.courses.length ? ` · ${s.courses.join(", ")} курс` : ""}</span>
