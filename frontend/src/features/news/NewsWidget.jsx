@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { timeAgo } from "../../lib/format.js";
 import { useSession } from "../../app/session.jsx";
-import { DemoBadge, Spinner } from "../../components/ui.jsx";
+import { DemoBadge, Modal, Spinner } from "../../components/ui.jsx";
 
 // Блок «Новини» лишається на місці завжди: без джерел, з помилкою чи без новин показує коротке повідомлення
 export default function NewsWidget({ limit = 5, headingId = "news-h" }) {
@@ -17,6 +18,7 @@ export default function NewsWidget({ limit = 5, headingId = "news-h" }) {
     retry: 1,
   });
   const items = news.data?.items || [];
+  const [open, setOpen] = useState(null); // новина без зовнішнього посилання відкривається у вікні
   return (
     <section className="card overflow-hidden" aria-labelledby={headingId}>
       <div className="flex items-center justify-between px-4 pt-3 pb-1">
@@ -32,10 +34,11 @@ export default function NewsWidget({ limit = 5, headingId = "news-h" }) {
           {news.data.degraded && <div className="mx-4 my-1 text-xs rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-300 px-2 py-1">Джерело тимчасово недоступне — показано останні отримані новини</div>}
           <ul>
             {items.map((n) => {
-              const Tag = n.url ? "a" : "div";
+              const Tag = n.url ? "a" : "button";
               return (
                 <li key={n.id}>
-                  <Tag {...(n.url ? { href: n.url, target: "_blank", rel: "noopener noreferrer" } : {})} className="block px-4 py-2.5 hover:bg-sunken/60">
+                  <Tag {...(n.url ? { href: n.url, target: "_blank", rel: "noopener noreferrer" } : { type: "button", onClick: () => setOpen(n) })}
+                    className="block w-full text-left px-4 py-2.5 hover:bg-sunken/60">
                     <div className="text-xs text-muted flex items-center gap-1.5 mb-0.5 min-w-0">
                       <span className="truncate">{n.source}</span> · <time dateTime={n.published_at} className="shrink-0">{timeAgo(n.published_at)}</time>
                       {n.is_demo && <DemoBadge className="!text-[10px] !px-1.5" />}
@@ -49,6 +52,18 @@ export default function NewsWidget({ limit = 5, headingId = "news-h" }) {
           </ul>
           {news.data.last_synced_at && <div className="px-4 py-2 text-[11px] text-muted border-t border-line">Оновлено {timeAgo(news.data.last_synced_at)} тому</div>}
         </>
+      )}
+      {open && (
+        <Modal open={Boolean(open)} onClose={() => setOpen(null)} title="Новина" labelledBy={`${headingId}-item`}>
+          <article className="p-5">
+            <div className="text-xs text-muted flex items-center gap-1.5 mb-2">
+              <span>{open.source}</span> · <time dateTime={open.published_at}>{new Date(open.published_at).toLocaleDateString("uk-UA", { day: "numeric", month: "long" })}</time>
+              {open.is_demo && <DemoBadge className="!text-[10px] !px-1.5" />}
+            </div>
+            <h3 className="font-display text-xl leading-snug break-words">{open.title.replace(/^\[ДЕМО\]\s*/, "")}</h3>
+            {open.summary && <p className="mt-3 text-[15px] leading-relaxed whitespace-pre-wrap break-words">{open.summary}</p>}
+          </article>
+        </Modal>
       )}
     </section>
   );

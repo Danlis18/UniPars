@@ -114,13 +114,22 @@ class DemoStore:
 _instance: DemoStore | None = None
 
 
+def seed_module():
+    """DEMO_SEED=showcase — дані для запису відео; інакше — звичайні демодані."""
+    import os
+
+    if os.environ.get("DEMO_SEED") == "showcase":
+        from . import showcase_seed
+        return showcase_seed
+    from . import demo_seed
+    return demo_seed
+
+
 def get_demo_store() -> DemoStore:
     global _instance
     if _instance is None:
-        from .demo_seed import seed
-
         _instance = DemoStore()
-        seed(_instance)
+        seed_module().seed(_instance)
     return _instance
 
 

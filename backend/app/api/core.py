@@ -36,7 +36,9 @@ def covers():
 def demo_users():
     if not get_settings().is_demo:
         raise HTTPException(404, "Недоступно")
-    from app.repositories.demo_seed import DEMO_USERS
+    from app.repositories.demo_store import seed_module
+
+    DEMO_USERS = seed_module().DEMO_USERS
 
     store = get_store()
     unis = {u["id"]: u["short_name"] for u in store.select("universities")}
