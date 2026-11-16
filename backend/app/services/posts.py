@@ -46,6 +46,13 @@ def validate_file(file_name: str, content_type: str, data: bytes, max_mb: int) -
     return name, fmt
 
 
+def storage_key(prefix: str, name: str) -> str:
+    """Ключ у сховищі: лише ASCII (Supabase Storage відхиляє кирилицю й пробіли). Оригінальна назва — у БД."""
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    ext = "." + ext if re.fullmatch(r"[a-z0-9]{1,8}", ext) else ""
+    return f"{prefix}/{uuid.uuid4().hex}{ext}"
+
+
 def file_out(r: Row) -> Row:
     fmt = ALLOWED_TYPES.get(r["mime_type"], r["file_name"].rsplit(".", 1)[-1].upper())
     return {"id": r["id"], "file_name": r["file_name"], "mime_type": r["mime_type"], "size_bytes": r["size_bytes"],
@@ -278,7 +285,7 @@ class PostService:
         name, _fmt = validate_file(file_name, content_type, data, max_mb)
         if self.s.count("attachments", [("post_id", "eq", post_id)]) >= 10:
             raise HTTPException(400, "Не більше 10 вкладень на допис")
-        path = f"{post['university_id']}/{post_id}/{uuid.uuid4().hex}-{name}"
+        path = storage_key(f"{post['university_id']}/{post_id}", name)
         storage.put(path, data, content_type)
         row = self.s.insert("attachments", {"post_id": post_id, "university_id": post["university_id"],
                                             "uploader_id": self.a.user_id, "storage_path": path, "file_name": name,

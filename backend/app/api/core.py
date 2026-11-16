@@ -135,7 +135,6 @@ def demo_file(token: str, sig: str):
     found = resolve(token, sig) if resolve else None
     if not found:
         raise HTTPException(404, "Посилання недійсне або прострочене")
-    path, download = found
-    name = path.name.split("-", 1)[-1]
+    path, download, name = found
     return FileResponse(path, filename=name, content_disposition_type="attachment" if download else "inline",
                         headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})

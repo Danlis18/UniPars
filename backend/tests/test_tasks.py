@@ -159,7 +159,7 @@ def test_file_links_inline_for_preview_and_attachment_for_download(client):
     url = client.get(f"/api/submissions/{sub_id}/link", headers=h).json()["url"]
     token, sig = url.split("/api/files/")[1].split("?sig=")
     import base64
-    forged = base64.urlsafe_b64encode(base64.urlsafe_b64decode(token)[:-1] + b"a").decode()
+    forged = base64.urlsafe_b64encode(base64.urlsafe_b64decode(token).replace(b"|i|", b"|a|")).decode()
     assert client.get(f"/api/files/{forged}?sig={sig}").status_code == 404
 
 
@@ -177,3 +177,14 @@ def test_anonymous_submission_hides_author_from_students_only(client):
     # у профілі Олени для інших анонімної роботи немає, для неї самої — є
     assert sub["id"] not in {w["id"] for w in client.get(f"/api/users/{OLENA}/works", headers=as_user(MAKSYM, UNI_A)).json()}
     assert sub["id"] in {w["id"] for w in client.get(f"/api/users/{OLENA}/works", headers=as_user(OLENA, UNI_A)).json()}
+
+
+def test_cyrillic_file_names_get_ascii_storage_keys(client):
+    r = client.post(f"/api/tasks/{DB1}/submissions", headers=as_user(OLENA, UNI_A),
+                    files={"file": ("Звіт лаб 1.pdf", PDF, "application/pdf")})
+    assert r.status_code == 201 and r.json()["file_name"] == "Звіт лаб 1.pdf"
+    from app.repositories.demo_store import get_demo_store
+    row = get_demo_store().get("submissions", id=r.json()["id"])
+    assert row["storage_path"].isascii() and row["storage_path"].endswith(".pdf")
+    dl = client.get(client.get(f"/api/submissions/{r.json()['id']}/link?download=true", headers=as_user(OLENA)).json()["url"])
+    assert "Звіт" in dl.headers["content-disposition"] or "%D0%97" in dl.headers["content-disposition"]

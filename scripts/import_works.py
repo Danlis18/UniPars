@@ -67,7 +67,7 @@ def main() -> int:
     from supabase import create_client  # noqa: E402
 
     from app.core.config import _supabase_base  # noqa: E402
-    from app.services.posts import validate_file  # noqa: E402
+    from app.services.posts import storage_key, validate_file  # noqa: E402
 
     m = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
     sb = create_client(_supabase_base(url), key)
@@ -146,7 +146,7 @@ def main() -> int:
             if db("task_files").select("id").eq("task_id", task["id"]).eq("file_name", name).execute().data:
                 skipped += 1
                 continue
-            path = f"{uni['id']}/tasks/{task['id']}/{uuid.uuid4().hex}-{name}"
+            path = storage_key(f"{uni['id']}/tasks/{task['id']}", name)
             bucket.upload(path, data, {"content-type": mime, "upsert": "false"})
             db("task_files").insert({"task_id": task["id"], "university_id": uni["id"], "uploader_id": author.id,
                                      "storage_path": path, "file_name": name, "mime_type": mime, "size_bytes": len(data)}).execute()
@@ -155,7 +155,7 @@ def main() -> int:
         if db("submissions").select("id").eq("task_id", task["id"]).eq("author_id", author.id).eq("file_name", name).execute().data:
             skipped += 1
             continue
-        path = f"{uni['id']}/submissions/{task['id']}/{uuid.uuid4().hex}-{name}"
+        path = storage_key(f"{uni['id']}/submissions/{task['id']}", name)
         bucket.upload(path, data, {"content-type": mime, "upsert": "false"})
         approved = it.get("status", "approved") == "approved"
         row = {"task_id": task["id"], "university_id": uni["id"], "author_id": author.id, "comment": it.get("comment", ""),

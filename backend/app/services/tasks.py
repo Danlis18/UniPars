@@ -16,7 +16,7 @@ from app.repositories.store import Row, Store
 from app.schemas.content import TaskBulkCreate, TaskCreate, TaskUpdate
 from app.services.access import Access
 from app.services.notifications import notify
-from app.services.posts import file_out, path_in_use, validate_file
+from app.services.posts import file_out, path_in_use, storage_key, validate_file
 
 KINDS = {"lab": "Лабораторна робота", "practical": "Практична робота", "module": "Модульна контрольна", "exam": "Екзамен"}
 STATUS_LABEL = {"pending": "На розгляді", "approved": "Опубліковано", "rejected": "Відхилено"}
@@ -228,7 +228,7 @@ class TaskService:
         name, _ = validate_file(file_name, content_type, data, max_mb)
         if self.s.count("task_files", [("task_id", "eq", task_id)]) >= 10:
             raise HTTPException(400, "Не більше 10 файлів до завдання")
-        path = f"{t['university_id']}/tasks/{task_id}/{uuid.uuid4().hex}-{name}"
+        path = storage_key(f"{t['university_id']}/tasks/{task_id}", name)
         storage.put(path, data, content_type)
         row = self.s.insert("task_files", {"task_id": task_id, "university_id": t["university_id"], "uploader_id": self.a.user_id,
                                            "storage_path": path, "file_name": name, "mime_type": content_type, "size_bytes": len(data)})
@@ -264,7 +264,7 @@ class TaskService:
         hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
         if sum(1 for r in mine if r["created_at"] >= hour_ago) >= MAX_SUBMISSIONS_PER_HOUR:
             raise HTTPException(429, "Забагато подань за годину. Спробуйте пізніше.")
-        path = f"{t['university_id']}/submissions/{task_id}/{uuid.uuid4().hex}-{name}"
+        path = storage_key(f"{t['university_id']}/submissions/{task_id}", name)
         storage.put(path, data, content_type)
         row = {
             "id": str(uuid.uuid4()), "task_id": task_id, "university_id": t["university_id"], "author_id": self.a.user_id,

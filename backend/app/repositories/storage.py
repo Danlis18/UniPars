@@ -56,7 +56,7 @@ class LocalStorage:
         # Режим (перегляд у браузері чи завантаження) входить у підпис — підмінити його не можна
         exp = int(time.time()) + LINK_TTL_SECONDS
         mode = "a" if download else "i"
-        token = base64.urlsafe_b64encode(f"{path}|{exp}|{mode}".encode()).decode()
+        token = base64.urlsafe_b64encode(f"{path}|{exp}|{mode}|{file_name}".encode()).decode()
         return f"/api/files/{token}?sig={self._sign(token)}"
 
     # Публічні файли (аватари): backend/.demo_uploads/public/<path>, віддаються через /api/public/<path>
@@ -77,18 +77,18 @@ class LocalStorage:
             return None
         return f if f.is_file() else None
 
-    def resolve_token(self, token: str, sig: str) -> tuple[Path, bool] | None:
-        """Повертає (файл, download) для дійсного посилання."""
+    def resolve_token(self, token: str, sig: str) -> tuple[Path, bool, str] | None:
+        """Повертає (файл, download, назва для користувача) для дійсного посилання."""
         if not hmac.compare_digest(self._sign(token), sig):
             return None
         try:
-            path, exp, mode = base64.urlsafe_b64decode(token.encode()).decode().rsplit("|", 2)
+            path, exp, mode, name = base64.urlsafe_b64decode(token.encode()).decode().split("|", 3)
         except Exception:
             return None
         if int(exp) < time.time():
             return None
         f = self._file(path)
-        return (f, mode == "a") if f.exists() else None
+        return (f, mode == "a", name) if f.exists() else None
 
 
 class SupabaseStorage:
