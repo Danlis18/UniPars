@@ -144,3 +144,20 @@ def test_home_deadlines_and_materials(client):
     client.get(f"/api/submissions/{sub_id}/link", headers=as_user(OLENA))
     home = client.get("/api/home", headers=as_user(OLENA, UNI_A)).json()
     assert home["materials_mode"] == "popular" and home["materials"][0]["id"] == sub_id
+
+
+def test_file_links_inline_for_preview_and_attachment_for_download(client):
+    h = as_user(OLENA, UNI_A)
+    sub_id = did("sub:db-lab1-iryna")
+    view = client.get(client.get(f"/api/submissions/{sub_id}/link", headers=h).json()["url"])
+    assert view.status_code == 200 and view.content.startswith(b"%PDF")
+    assert view.headers["content-disposition"].startswith("inline")
+    assert view.headers["content-type"] == "application/pdf"
+    dl = client.get(client.get(f"/api/submissions/{sub_id}/link?download=true", headers=h).json()["url"])
+    assert dl.headers["content-disposition"].startswith("attachment")
+    # режим захищений підписом: підмінити «i» на «a» в токені не вийде
+    url = client.get(f"/api/submissions/{sub_id}/link", headers=h).json()["url"]
+    token, sig = url.split("/api/files/")[1].split("?sig=")
+    import base64
+    forged = base64.urlsafe_b64encode(base64.urlsafe_b64decode(token)[:-1] + b"a").decode()
+    assert client.get(f"/api/files/{forged}?sig={sig}").status_code == 404

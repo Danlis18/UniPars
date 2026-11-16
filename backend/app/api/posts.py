@@ -63,8 +63,8 @@ async def upload(post_id: str, file: UploadFile = File(...), c: Ctx = Depends(ct
 
 
 @router.get("/attachments/{attachment_id}/link")
-def attachment_link(attachment_id: str, c: Ctx = Depends(ctx)):
-    return svc(c).attachment_link(attachment_id, get_storage())
+def attachment_link(attachment_id: str, download: bool = False, c: Ctx = Depends(ctx)):
+    return svc(c).attachment_link(attachment_id, get_storage(), download)
 
 
 @router.delete("/attachments/{attachment_id}", status_code=204)

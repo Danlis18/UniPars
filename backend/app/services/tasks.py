@@ -238,12 +238,12 @@ class TaskService:
             storage.remove(f["storage_path"])
         self.s.delete("task_files", {"id": file_id})
 
-    def task_file_link(self, file_id: str, storage) -> Row:
+    def task_file_link(self, file_id: str, storage, download: bool = False) -> Row:
         f = self.s.get("task_files", id=file_id)
         if not f:
             raise HTTPException(404, "Файл не знайдено")
         self.a.require_member(f["university_id"])
-        return {"url": storage.signed_url(f["storage_path"], f["file_name"]), "expires_in": 120}
+        return {"url": storage.signed_url(f["storage_path"], f["file_name"], download), "expires_in": 120}
 
     # ---------- Подання ----------
     def submit(self, task_id: str, file_name: str, content_type: str, data: bytes, comment: str, storage, max_mb: int) -> Row:
@@ -293,14 +293,14 @@ class TaskService:
                 pass
         self.s.delete("submissions", {"id": submission_id})
 
-    def submission_link(self, submission_id: str, storage) -> Row:
+    def submission_link(self, submission_id: str, storage, download: bool = False) -> Row:
         r = self.s.get("submissions", id=submission_id)
         # 404 замість 403: не розкриваємо існування чужих подань на розгляді
         if not r or not self._can_see_submission(r):
             raise HTTPException(404, "Файл не знайдено")
         if r["status"] == "approved" and r["author_id"] != self.a.user_id:
             self.s.update("submissions", {"id": submission_id}, {"download_count": (r.get("download_count") or 0) + 1})
-        return {"url": storage.signed_url(r["storage_path"], r["file_name"]), "expires_in": 120}
+        return {"url": storage.signed_url(r["storage_path"], r["file_name"], download), "expires_in": 120}
 
     # ---------- Модерація ----------
     def queue(self, university_id: str, status: str = "pending") -> list[Row]:

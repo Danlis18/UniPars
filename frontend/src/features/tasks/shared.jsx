@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Download, Eye, FileText, Lock, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CalendarClock, Download, ExternalLink, Eye, FileText, Lock, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
 import { api, uploadFile } from "../../lib/api.js";
 import { fileSize } from "../../lib/format.js";
 import { Modal, useToast } from "../../components/ui.jsx";
@@ -55,36 +55,87 @@ export function DeadlineChip({ iso }) {
   );
 }
 
-// Відкриття файлу за тимчасовим посиланням (права перевіряє backend)
-export function useFileOpener() {
+const IMAGE = new Set(["PNG", "JPG", "WEBP", "GIF"]);
+
+// Перегляд PDF і зображень прямо на сайті: тимчасове посилання inline, без завантаження файлу
+function PreviewModal({ file, linkPath, open, onClose, onDownload }) {
+  const link = useQuery({
+    queryKey: ["file-link", linkPath],
+    queryFn: () => api(linkPath),
+    enabled: open,
+    staleTime: 60_000, // посилання живе 120 с
+    gcTime: 0,
+  });
+  const url = link.data?.url;
+  return (
+    <Modal open={open} onClose={onClose} title={file.file_name} labelledBy={`pv-${file.id}`} wide="xl">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-line">
+        <span className="text-xs text-muted mr-auto">{file.format} · {fileSize(file.size_bytes)}</span>
+        {url && <a href={url} target="_blank" rel="noopener noreferrer" className="btn-quiet h-8 px-3 text-xs"><ExternalLink size={14} /> У новій вкладці</a>}
+        <button type="button" className="btn-ghost h-8 px-3 text-xs" onClick={onDownload}><Download size={14} /> Завантажити</button>
+      </div>
+      <div className="bg-sunken grid place-items-center" style={{ height: "min(75vh, 900px)" }}>
+        {link.isLoading ? <span className="text-sm text-muted">Відкриваємо файл…</span>
+          : link.isError ? <span className="text-sm text-danger px-4 text-center">{link.error.message}</span>
+          : IMAGE.has(file.format) ? <img src={url} alt={file.file_name} className="max-w-full max-h-full object-contain" />
+          : <iframe src={url} title={`Перегляд: ${file.file_name}`} className="w-full h-full border-0 bg-white" />}
+      </div>
+    </Modal>
+  );
+}
+
+// Рядок файлу: «Переглянути» (PDF і зображення — у вікні на сайті) та «Завантажити»
+export function FileRow({ file, linkPath, children }) {
   const toast = useToast();
-  return async (path) => {
-    // вікно відкриваємо одразу, інакше браузер заблокує його після await
-    const w = window.open("", "_blank");
+  const [preview, setPreview] = useState(false);
+  const download = async () => {
     try {
-      const { url } = await api(path);
-      if (w) { w.opener = null; w.location.href = url; } else window.location.href = url;
+      const { url } = await api(linkPath, { query: { download: true } });
+      // посилання з Content-Disposition: attachment — браузер завантажує файл, не залишаючи сторінку
+      const a = document.createElement("a");
+      a.href = url;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     } catch (e) {
-      w?.close();
       toast(e.message, "error");
     }
   };
-}
-
-export function FileRow({ file, onOpen, children }) {
+  const view = async () => {
+    // на телефонах PDF у вбудованому вікні часто не відображається — відкриваємо системний переглядач
+    const touch = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+    if (touch && file.format === "PDF") {
+      const w = window.open("", "_blank");
+      try {
+        const { url } = await api(linkPath);
+        if (w) { w.opener = null; w.location.href = url; } else window.location.href = url;
+      } catch (e) { w?.close(); toast(e.message, "error"); }
+      return;
+    }
+    setPreview(true);
+  };
   return (
     <div className="flex items-center gap-3 rounded-xl border border-line px-3 py-2.5 min-w-0">
-      <span className="w-10 h-10 rounded-lg bg-sunken grid place-items-center shrink-0" aria-hidden><FileText size={18} className="text-primary" /></span>
+      <button type="button" onClick={file.previewable ? view : download} className="w-10 h-10 rounded-lg bg-sunken grid place-items-center shrink-0 hover:bg-primary/15" tabIndex={-1} aria-hidden>
+        <FileText size={18} className="text-primary" />
+      </button>
       <span className="flex-1 min-w-0">
         <span className="text-sm font-medium break-all line-clamp-2">{file.file_name}</span>
         <span className="block text-xs text-muted">{file.format} · {fileSize(file.size_bytes)}</span>
         {children}
       </span>
-      <button type="button" className="btn-ghost h-9 px-3 text-xs shrink-0" onClick={onOpen}
-        aria-label={`${file.previewable ? "Переглянути" : "Завантажити"} ${file.file_name}`}>
-        {file.previewable ? <Eye size={15} /> : <Download size={15} />}
-        <span className="hidden sm:inline">{file.previewable ? "Переглянути" : "Завантажити"}</span>
-      </button>
+      <span className="flex items-center gap-1 shrink-0">
+        {file.previewable && (
+          <button type="button" className="btn-ghost h-9 px-3 text-xs" onClick={view} aria-label={`Переглянути ${file.file_name}`}>
+            <Eye size={15} /><span className="hidden sm:inline">Переглянути</span>
+          </button>
+        )}
+        <button type="button" className={file.previewable ? "icon-btn" : "btn-ghost h-9 px-3 text-xs"} onClick={download} aria-label={`Завантажити ${file.file_name}`} title="Завантажити">
+          <Download size={15} />{!file.previewable && <span className="hidden sm:inline">Завантажити</span>}
+        </button>
+      </span>
+      {preview && <PreviewModal file={file} linkPath={linkPath} open={preview} onClose={() => setPreview(false)} onDownload={download} />}
     </div>
   );
 }

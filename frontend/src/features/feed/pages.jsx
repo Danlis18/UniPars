@@ -9,7 +9,7 @@ import { Avatar, Empty, ErrorState, Skeleton } from "../../components/ui.jsx";
 import { PageHeader, UrlPills } from "../../components/PageHeader.jsx";
 import NewsWidget from "../news/NewsWidget.jsx";
 import PostList from "./PostList.jsx";
-import { FileRow, KINDS, deadlineInfo, taskFullTitle, useFileOpener } from "../tasks/shared.jsx";
+import { FileRow, KINDS, deadlineInfo, taskFullTitle } from "../tasks/shared.jsx";
 
 function Block({ id, title, icon: Icon, action, children }) {
   return (
@@ -53,7 +53,6 @@ function Deadlines({ items }) {
 }
 
 function Materials({ items }) {
-  const open = useFileOpener();
   if (!items.length) {
     return <p className="px-4 pb-4 text-sm text-muted">Опубліковані приклади з'являться тут після перевірки модераторами.</p>;
   }
@@ -64,7 +63,7 @@ function Materials({ items }) {
           <Link to={`/tasks/${m.task.id}`} className="block text-xs text-muted hover:text-primary mb-1 break-words">
             {m.subject?.name} · {KINDS[m.task.kind]?.short}-{m.task.number} · {m.task.title}
           </Link>
-          <FileRow file={m} onOpen={() => open(`/submissions/${m.id}/link`)}>
+          <FileRow file={m} linkPath={`/submissions/${m.id}/link`}>
             <span className="flex items-center gap-1.5 mt-1 text-xs text-muted min-w-0">
               <Avatar user={m.author} size={16} /><span className="truncate">{m.author.display_name}</span>
               <span aria-hidden>·</span><span className="shrink-0">{timeAgo(m.published_at)}</span>

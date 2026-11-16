@@ -23,7 +23,7 @@ log = logging.getLogger("unipars.storage")
 
 class Storage(Protocol):
     def put(self, path: str, data: bytes, content_type: str) -> None: ...
-    def signed_url(self, path: str, file_name: str) -> str: ...
+    def signed_url(self, path: str, file_name: str, download: bool = False) -> str: ...
     def remove(self, path: str) -> None: ...
 
 
@@ -52,9 +52,11 @@ class LocalStorage:
     def _sign(self, payload: str) -> str:
         return hmac.new(self.secret, payload.encode(), hashlib.sha256).hexdigest()[:32]
 
-    def signed_url(self, path, file_name):
+    def signed_url(self, path, file_name, download=False):
+        # Режим (перегляд у браузері чи завантаження) входить у підпис — підмінити його не можна
         exp = int(time.time()) + LINK_TTL_SECONDS
-        token = base64.urlsafe_b64encode(f"{path}|{exp}".encode()).decode()
+        mode = "a" if download else "i"
+        token = base64.urlsafe_b64encode(f"{path}|{exp}|{mode}".encode()).decode()
         return f"/api/files/{token}?sig={self._sign(token)}"
 
     # Публічні файли (аватари): backend/.demo_uploads/public/<path>, віддаються через /api/public/<path>
@@ -75,17 +77,18 @@ class LocalStorage:
             return None
         return f if f.is_file() else None
 
-    def resolve_token(self, token: str, sig: str) -> Path | None:
+    def resolve_token(self, token: str, sig: str) -> tuple[Path, bool] | None:
+        """Повертає (файл, download) для дійсного посилання."""
         if not hmac.compare_digest(self._sign(token), sig):
             return None
         try:
-            path, exp = base64.urlsafe_b64decode(token.encode()).decode().rsplit("|", 1)
+            path, exp, mode = base64.urlsafe_b64decode(token.encode()).decode().rsplit("|", 2)
         except Exception:
             return None
         if int(exp) < time.time():
             return None
         f = self._file(path)
-        return f if f.exists() else None
+        return (f, mode == "a") if f.exists() else None
 
 
 class SupabaseStorage:
@@ -113,6 +116,8 @@ class SupabaseStorage:
     def remove(self, path):
         self.bucket.remove([path])
 
-    def signed_url(self, path, file_name):
-        res = self.bucket.create_signed_url(path, LINK_TTL_SECONDS, {"download": file_name})
+    def signed_url(self, path, file_name, download=False):
+        # Без параметра download Supabase віддає файл inline — PDF і зображення відкриваються в браузері
+        options = {"download": file_name} if download else {}
+        res = self.bucket.create_signed_url(path, LINK_TTL_SECONDS, options)
         return res.get("signedURL") or res.get("signedUrl")

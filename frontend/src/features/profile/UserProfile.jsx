@@ -7,7 +7,7 @@ import { useSession } from "../../app/session.jsx";
 import { Avatar, Empty, ErrorState, Loading, Modal, useConfirm, useToast } from "../../components/ui.jsx";
 import { PageHeader, UrlTabs } from "../../components/PageHeader.jsx";
 import PostList from "../feed/PostList.jsx";
-import { FileRow, taskFullTitle, useFileOpener } from "../tasks/shared.jsx";
+import { FileRow, taskFullTitle } from "../tasks/shared.jsx";
 import { CoverPicker, ProfileCover } from "./Covers.jsx";
 import { MessageButton } from "../messages/MessagesPage.jsx";
 
@@ -181,7 +181,6 @@ const plural = (n, one, few, many) => {
 // Опубліковані (схвалені модерацією) роботи користувача
 function PublishedWorks({ userId, isMe }) {
   const { activeUniversityId } = useSession();
-  const open = useFileOpener();
   const q = useQuery({ queryKey: ["works", activeUniversityId, userId], queryFn: () => api(`/users/${userId}/works`) });
   if (q.isLoading) return <Loading />;
   if (q.isError) return <ErrorState error={q.error} onRetry={q.refetch} />;
@@ -197,7 +196,7 @@ function PublishedWorks({ userId, isMe }) {
           <Link to={`/tasks/${w.task.id}`} className="block text-xs text-muted hover:text-primary mb-1 break-words">
             {w.subject?.name} · {taskFullTitle(w.task)}
           </Link>
-          <FileRow file={w} onOpen={() => open(`/submissions/${w.id}/link`)} />
+          <FileRow file={w} linkPath={`/submissions/${w.id}/link`} />
         </li>
       ))}
     </ul>

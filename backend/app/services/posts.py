@@ -285,12 +285,12 @@ class PostService:
                                             "mime_type": content_type, "size_bytes": len(data)})
         return self._att_out(row)
 
-    def attachment_link(self, attachment_id: str, storage) -> Row:
+    def attachment_link(self, attachment_id: str, storage, download: bool = False) -> Row:
         att = self.s.get("attachments", id=attachment_id)
         if not att:
             raise HTTPException(404, "Файл не знайдено")
         self.a.get_post(att["post_id"])  # перевірка доступу до допису
-        return {"url": storage.signed_url(att["storage_path"], att["file_name"]), "expires_in": 120}
+        return {"url": storage.signed_url(att["storage_path"], att["file_name"], download), "expires_in": 120}
 
     def delete_attachment(self, attachment_id: str, storage) -> None:
         att = self.s.get("attachments", id=attachment_id)

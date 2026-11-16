@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Lock, Bookmark, CheckCircle2, CircleDot, Download, Eye, FileText, Flag, Heart, Link2, MessageCircle, MoreHorizontal, Pencil, Share2, Sparkles, Trash2, Users } from "lucide-react";
+import { FileRow } from "../tasks/shared.jsx";
 import { api } from "../../lib/api.js";
 import { SoonChip, useAIEnabled } from "../ai/ComingSoon.jsx";
 import { fileSize, timeAgo } from "../../lib/format.js";
@@ -37,20 +38,7 @@ export function usePatchPost() {
   };
 }
 
-export function useAttachmentOpener() {
-  const toast = useToast();
-  return async (att) => {
-    try {
-      const { url } = await api(`/attachments/${att.id}/link`);
-      window.open(url, "_blank", "noopener");
-    } catch (e) {
-      toast(e.message, "error");
-    }
-  };
-}
-
 export function Attachments({ post }) {
-  const open = useAttachmentOpener();
   if (!post.attachments?.length && !post.material?.link_url) return null;
   return (
     <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
@@ -60,18 +48,7 @@ export function Attachments({ post }) {
           <span className="truncate text-sm">{post.material.link_url}</span>
         </a>
       )}
-      {post.attachments?.map((a) => (
-        <button key={a.id} onClick={() => open(a)} className="w-full flex items-center gap-3 rounded-xl border border-line px-3 py-2 hover:bg-sunken text-left">
-          <span className="w-9 h-9 rounded-lg bg-sunken grid place-items-center shrink-0"><FileText size={18} className="text-primary" /></span>
-          <span className="flex-1 min-w-0">
-            <span className="block text-sm font-medium truncate">{a.file_name}</span>
-            <span className="block text-xs text-muted">{a.format} · {fileSize(a.size_bytes)}</span>
-          </span>
-          <span className="text-xs text-muted flex items-center gap-1 shrink-0">
-            {a.previewable ? <><Eye size={14} /> Переглянути</> : <><Download size={14} /> Завантажити</>}
-          </span>
-        </button>
-      ))}
+      {post.attachments?.map((a) => <FileRow key={a.id} file={a} linkPath={`/attachments/${a.id}/link`} />)}
     </div>
   );
 }

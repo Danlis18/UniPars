@@ -92,8 +92,8 @@ export function Modal({ open, onClose, title, children, wide = false, labelledBy
       onCancel={(e) => { e.preventDefault(); onClose(); }}
       onClick={(e) => e.target === ref.current && onClose()}
       aria-labelledby={labelledBy}
-      className={`backdrop:bg-black/40 bg-surface text-ink rounded-2xl p-0 w-[min(100vw-24px,${wide ? "720px" : "560px"})] max-h-[90vh] border border-line shadow-2xl`}
-      style={{ width: `min(calc(100vw - 24px), ${wide ? 720 : 560}px)` }}
+      className="backdrop:bg-black/40 bg-surface text-ink rounded-2xl p-0 max-h-[90vh] border border-line shadow-2xl"
+      style={{ width: `min(calc(100vw - 24px), ${wide === "xl" ? 1100 : wide ? 720 : 560}px)` }}
     >
       {open && (
         <div className="flex flex-col max-h-[90vh]">

@@ -7,7 +7,7 @@ import { timeAgo } from "../../lib/format.js";
 import { useSession } from "../../app/session.jsx";
 import { Avatar, Empty, ErrorState, Loading, useConfirm, useToast } from "../../components/ui.jsx";
 import { PageHeader, UrlPills } from "../../components/PageHeader.jsx";
-import { FileRow, KINDS, StatusChip, taskFullTitle, useFileOpener } from "./shared.jsx";
+import { FileRow, KINDS, StatusChip, taskFullTitle } from "./shared.jsx";
 
 function TaskRef({ s }) {
   if (!s.task) return null;
@@ -26,7 +26,6 @@ export function MySubmissionsPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
-  const openFile = useFileOpener();
   const q = useQuery({ queryKey: ["my-submissions", activeUniversityId], queryFn: () => api("/me/submissions") });
   const withdraw = async (s) => {
     if (!(await confirm({ title: "Відкликати подання?", message: s.file_name, confirmLabel: "Відкликати", danger: true }))) return;
@@ -56,7 +55,7 @@ export function MySubmissionsPage() {
                 <TaskRef s={s} />
                 <StatusChip status={s.status} />
               </div>
-              <FileRow file={s} onOpen={() => openFile(`/submissions/${s.id}/link`)}>
+              <FileRow file={s} linkPath={`/submissions/${s.id}/link`}>
                 <span className="block text-xs text-muted mt-0.5">Надіслано {timeAgo(s.created_at)}{s.status === "approved" && s.download_count ? ` · завантажень: ${s.download_count}` : ""}</span>
               </FileRow>
               {s.comment && <p className="text-xs text-muted break-words">Ваш коментар: {s.comment}</p>}
@@ -77,7 +76,6 @@ export function MySubmissionsPage() {
 // ---------- Модерація подань ----------
 function ReviewCard({ s, onDone }) {
   const toast = useToast();
-  const openFile = useFileOpener();
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -99,7 +97,7 @@ function ReviewCard({ s, onDone }) {
         <span className="ml-auto"><StatusChip status={s.status} /></span>
       </div>
       <TaskRef s={s} />
-      <FileRow file={s} onOpen={() => openFile(`/submissions/${s.id}/link`)} />
+      <FileRow file={s} linkPath={`/submissions/${s.id}/link`} />
       {s.comment && <p className="text-sm rounded-xl bg-sunken px-3 py-2 break-words"><span className="text-muted">Коментар автора:</span> {s.comment}</p>}
       {s.status === "rejected" && s.review_note && <p className="text-xs text-danger break-words">Причина: {s.review_note}</p>}
       {rejecting ? (
@@ -153,7 +151,6 @@ export function ModerationQueue() {
 function AssignRow({ item, onDone }) {
   const { activeUniversityId } = useSession();
   const toast = useToast();
-  const openFile = useFileOpener();
   const [subject, setSubject] = useState(item.subject?.slug || "");
   const [taskId, setTaskId] = useState("");
   const subjects = useQuery({ queryKey: ["subjects", activeUniversityId, "", "all"], queryFn: () => api("/subjects", { query: { scope: "all" } }) });
@@ -169,7 +166,7 @@ function AssignRow({ item, onDone }) {
     <li className="card p-3 sm:p-4 space-y-2">
       <Link to={`/p/${item.post.id}`} className="block text-sm font-semibold hover:underline break-words">{item.post.title}</Link>
       <div className="text-xs text-muted">{item.author?.display_name} · {item.subject?.name}</div>
-      <FileRow file={item} onOpen={() => openFile(`/attachments/${item.id}/link`)} />
+      <FileRow file={item} linkPath={`/attachments/${item.id}/link`} />
       <div className="grid sm:grid-cols-[1fr_1fr_auto] gap-2">
         <select className="input h-9" aria-label="Предмет" value={subject} onChange={(e) => { setSubject(e.target.value); setTaskId(""); }}>
           <option value="">Предмет…</option>

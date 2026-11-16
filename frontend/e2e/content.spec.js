@@ -9,14 +9,6 @@ async function taskId(request, user, slug, kind, number) {
   return (await r.json()).items.find((t) => t.number === number).id;
 }
 
-// window.open підмінюємо: перевіряємо, що тимчасове посилання справді віддає файл
-async function captureOpen(page) {
-  await page.evaluate(() => {
-    window.__opened = null;
-    window.open = () => { const w = { close() {}, location: {} }; Object.defineProperty(w.location, "href", { set: (u) => { window.__opened = u; } }); return w; };
-  });
-}
-
 test.describe("Навчальний посібник: завдання, подання, модерація", () => {
   test("від предмета до завдання → подання → схвалення → приклад на сторінці завдання", async ({ page, request }) => {
     const file = `e2e-approve-${Date.now()}`;
@@ -52,11 +44,18 @@ test.describe("Навчальний посібник: завдання, пода
     // Модераторка відкриває файл і схвалює
     await loginAs(page, request, "Ірина", "/admin");
     const card = page.locator("#main li", { hasText: `${file}.pdf` });
-    await captureOpen(page);
-    await card.getByRole("button", { name: new RegExp(`${file}\\.pdf`) }).click();
-    await expect.poll(() => page.evaluate(() => window.__opened)).toContain("/api/files/");
-    const res = await request.get(await page.evaluate(() => window.__opened));
+    // Перегляд PDF прямо на сайті: вікно з iframe, файл віддається inline
+    await card.getByRole("button", { name: `Переглянути ${file}.pdf` }).click();
+    const viewer = page.getByRole("dialog", { name: `${file}.pdf` });
+    const frame = viewer.locator("iframe");
+    await expect(frame).toBeVisible();
+    const res = await request.get(await frame.getAttribute("src"));
     expect((await res.body()).subarray(0, 4).toString()).toBe("%PDF");
+    expect(res.headers()["content-disposition"]).toMatch(/^inline/);
+    // «Завантажити» справді завантажує файл
+    const [download] = await Promise.all([page.waitForEvent("download"), viewer.getByRole("button", { name: "Завантажити" }).click()]);
+    expect(download.suggestedFilename()).toContain(file);
+    await viewer.getByRole("button", { name: "Закрити" }).click();
     await card.getByRole("button", { name: "Схвалити й опублікувати" }).click();
     await expect(page.getByText("Роботу опубліковано біля завдання")).toBeVisible();
 

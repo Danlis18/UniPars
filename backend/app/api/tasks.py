@@ -66,8 +66,8 @@ def delete_task_file(file_id: str, c: Ctx = Depends(ctx)):
 
 
 @router.get("/task-files/{file_id}/link")
-def task_file_link(file_id: str, c: Ctx = Depends(ctx)):
-    return svc(c).task_file_link(file_id, get_storage())
+def task_file_link(file_id: str, download: bool = False, c: Ctx = Depends(ctx)):
+    return svc(c).task_file_link(file_id, get_storage(), download)
 
 
 @router.post("/tasks/{task_id}/submissions", status_code=201)
@@ -87,8 +87,8 @@ def withdraw(submission_id: str, c: Ctx = Depends(ctx)):
 
 
 @router.get("/submissions/{submission_id}/link")
-def submission_link(submission_id: str, c: Ctx = Depends(ctx)):
-    return svc(c).submission_link(submission_id, get_storage())
+def submission_link(submission_id: str, download: bool = False, c: Ctx = Depends(ctx)):
+    return svc(c).submission_link(submission_id, get_storage(), download)
 
 
 @router.get("/moderation/submissions")

@@ -7,7 +7,7 @@ import { timeAgo } from "../../lib/format.js";
 import { Avatar, Empty, ErrorState, Loading, Modal, useConfirm, useToast } from "../../components/ui.jsx";
 import { PageHeader } from "../../components/PageHeader.jsx";
 import Markdown from "../../components/Markdown.jsx";
-import { BuyReport, DeadlineChip, FileRow, KINDS, StatusChip, SubmitDialog, deadlineInfo, taskLabel, useFileOpener } from "./shared.jsx";
+import { BuyReport, DeadlineChip, FileRow, KINDS, StatusChip, SubmitDialog, deadlineInfo, taskLabel } from "./shared.jsx";
 
 function Section({ id, title, count, children, action }) {
   return (
@@ -90,7 +90,6 @@ export default function TaskPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
-  const openFile = useFileOpener();
   const [submitting, setSubmitting] = useState(false);
   const [editing, setEditing] = useState(false);
   const q = useQuery({ queryKey: ["task", id], queryFn: () => api(`/tasks/${id}`) });
@@ -155,7 +154,7 @@ export default function TaskPage() {
           <div className="mt-3 space-y-2">
             {t.files.map((f) => (
               <div key={f.id} className="flex items-center gap-2">
-                <div className="flex-1 min-w-0"><FileRow file={f} onOpen={() => openFile(`/task-files/${f.id}/link`)} /></div>
+                <div className="flex-1 min-w-0"><FileRow file={f} linkPath={`/task-files/${f.id}/link`} /></div>
                 {t.can_manage && <button className="icon-btn hover:!text-danger" onClick={() => files.remove(f)} aria-label={`Видалити ${f.file_name}`}><Trash2 size={16} /></button>}
               </div>
             ))}
@@ -169,7 +168,7 @@ export default function TaskPage() {
           <ul className="space-y-2">
             {t.examples.map((e) => (
               <li key={e.id}>
-                <FileRow file={e} onOpen={() => openFile(`/submissions/${e.id}/link`)}>
+                <FileRow file={e} linkPath={`/submissions/${e.id}/link`}>
                   <span className="flex items-center gap-1.5 mt-1 text-xs text-muted min-w-0">
                     <Link to={`/u/${e.author.id}`} className="flex items-center gap-1.5 min-w-0 hover:underline">
                       <Avatar user={e.author} size={18} /><span className="truncate">{e.author.display_name}</span>
