@@ -93,6 +93,30 @@ test.describe("Навчальний посібник: завдання, пода
     await expect(page.getByText(`${file}.pdf`)).toHaveCount(0);
   });
 
+  test("анонімна публікація: інші бачать «Анонімний студент»", async ({ page, request }) => {
+    const file = `e2e-anon-${Date.now()}`;
+    const olena = await loginAs(page, request, "Олена");
+    const id = await taskId(request, olena, "db", "lab", 3);
+    await page.goto(`/tasks/${id}`);
+    await page.getByRole("button", { name: "Подати свій варіант" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Подати свій варіант" });
+    await dialog.locator("input[type=file]").setInputFiles(PDF(file));
+    await dialog.getByLabel(/Опублікувати анонімно/).check();
+    await dialog.getByRole("button", { name: "Надіслати на розгляд" }).click();
+    await expect(page.getByText("анонімно").first()).toBeVisible();
+
+    await loginAs(page, request, "Ірина", "/admin");
+    const card = page.locator("#main li", { hasText: `${file}.pdf` });
+    await expect(card.getByText("Олена Коваль")).toBeVisible(); // модерація бачить автора
+    await card.getByRole("button", { name: "Схвалити й опублікувати" }).click();
+    await expect(page.getByText("Роботу опубліковано біля завдання")).toBeVisible();
+
+    await loginAs(page, request, "Максим", `/tasks/${id}`);
+    const row = page.locator("li", { hasText: `${file}.pdf` });
+    await expect(row.getByText("Анонімний студент")).toBeVisible();
+    await expect(row.getByText("Олена Коваль")).toHaveCount(0);
+  });
+
   test("звичайний студент не має доступу до модерації", async ({ page, request }) => {
     await loginAs(page, request, "Олена", "/admin");
     await expect(page.getByText("Немає доступу")).toBeVisible();

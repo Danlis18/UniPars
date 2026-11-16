@@ -9,7 +9,7 @@ import { Avatar, Empty, ErrorState, Skeleton } from "../../components/ui.jsx";
 import { PageHeader, UrlPills } from "../../components/PageHeader.jsx";
 import NewsWidget from "../news/NewsWidget.jsx";
 import PostList from "./PostList.jsx";
-import { FileRow, KINDS, deadlineInfo, taskFullTitle } from "../tasks/shared.jsx";
+import { AuthorLine, FileRow, KINDS, deadlineInfo, taskFullTitle } from "../tasks/shared.jsx";
 
 function Block({ id, title, icon: Icon, action, children }) {
   return (
@@ -65,7 +65,7 @@ function Materials({ items }) {
           </Link>
           <FileRow file={m} linkPath={`/submissions/${m.id}/link`}>
             <span className="flex items-center gap-1.5 mt-1 text-xs text-muted min-w-0">
-              <Avatar user={m.author} size={16} /><span className="truncate">{m.author.display_name}</span>
+              <AuthorLine author={m.author} size={16} />
               <span aria-hidden>·</span><span className="shrink-0">{timeAgo(m.published_at)}</span>
             </span>
           </FileRow>

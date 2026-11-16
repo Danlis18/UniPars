@@ -53,7 +53,7 @@ export function MySubmissionsPage() {
             <li key={s.id} className="card p-3 sm:p-4 space-y-2">
               <div className="flex flex-wrap items-center gap-2 justify-between">
                 <TaskRef s={s} />
-                <StatusChip status={s.status} />
+                <span className="flex gap-1.5">{s.is_anonymous && <span className="chip bg-sunken text-muted">анонімно</span>}<StatusChip status={s.status} /></span>
               </div>
               <FileRow file={s} linkPath={`/submissions/${s.id}/link`}>
                 <span className="block text-xs text-muted mt-0.5">Надіслано {timeAgo(s.created_at)}{s.status === "approved" && s.download_count ? ` · завантажень: ${s.download_count}` : ""}</span>
@@ -94,6 +94,7 @@ function ReviewCard({ s, onDone }) {
         <Avatar user={s.author} size={28} />
         <Link to={`/u/${s.author.id}`} className="text-sm font-semibold truncate hover:underline">{s.author.display_name}</Link>
         <span className="text-xs text-muted shrink-0">· {timeAgo(s.created_at)}</span>
+        {s.is_anonymous && <span className="chip bg-sunken text-muted shrink-0">анонімно</span>}
         <span className="ml-auto"><StatusChip status={s.status} /></span>
       </div>
       <TaskRef s={s} />

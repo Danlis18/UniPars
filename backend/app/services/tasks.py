@@ -20,6 +20,7 @@ from app.services.posts import file_out, path_in_use, validate_file
 
 KINDS = {"lab": "Лабораторна робота", "practical": "Практична робота", "module": "Модульна контрольна", "exam": "Екзамен"}
 STATUS_LABEL = {"pending": "На розгляді", "approved": "Опубліковано", "rejected": "Відхилено"}
+ANONYMOUS = {"id": None, "display_name": "Анонімний студент", "avatar_url": None}
 MAX_PENDING_PER_TASK = 3
 MAX_SUBMISSIONS_PER_HOUR = 10
 
@@ -78,11 +79,15 @@ class TaskService:
 
     def _sub_out(self, r: Row, people: dict[str, Row], tasks: dict[str, Row] | None = None,
                  subjects: dict[str, Row] | None = None, private: bool = False) -> Row:
+        anonymous = bool(r.get("is_anonymous"))
+        mine = r["author_id"] == self.a.user_id
+        # Анонімну роботу підписуємо без імені для всіх, крім автора й модерації
+        hide = anonymous and not mine and not self.a.is_staff(r["university_id"])
+        author = ANONYMOUS if hide else people.get(r["author_id"], {"id": r["author_id"], "display_name": "Користувач"})
         out = {**file_out(r), "id": r["id"], "task_id": r["task_id"], "status": r["status"],
                "status_label": STATUS_LABEL[r["status"]], "created_at": r["created_at"], "published_at": r.get("published_at"),
-               "download_count": r.get("download_count", 0),
-               "author": people.get(r["author_id"], {"id": r["author_id"], "display_name": "Користувач"}),
-               "is_mine": r["author_id"] == self.a.user_id}
+               "download_count": r.get("download_count", 0), "author": author, "is_anonymous": anonymous,
+               "is_mine": mine}
         if private:  # коментар для модератора й причина відхилення — лише автору й модерації
             out["comment"] = r.get("comment", "")
             out["review_note"] = r.get("review_note")
@@ -246,7 +251,8 @@ class TaskService:
         return {"url": storage.signed_url(f["storage_path"], f["file_name"], download), "expires_in": 120}
 
     # ---------- Подання ----------
-    def submit(self, task_id: str, file_name: str, content_type: str, data: bytes, comment: str, storage, max_mb: int) -> Row:
+    def submit(self, task_id: str, file_name: str, content_type: str, data: bytes, comment: str, storage, max_mb: int,
+               anonymous: bool = False) -> Row:
         t = self._task(task_id)
         comment = (comment or "").strip()
         if len(comment) > 2000:
@@ -260,12 +266,15 @@ class TaskService:
             raise HTTPException(429, "Забагато подань за годину. Спробуйте пізніше.")
         path = f"{t['university_id']}/submissions/{task_id}/{uuid.uuid4().hex}-{name}"
         storage.put(path, data, content_type)
-        row = self.s.insert("submissions", {
+        row = {
             "id": str(uuid.uuid4()), "task_id": task_id, "university_id": t["university_id"], "author_id": self.a.user_id,
             "comment": comment, "status": "pending", "review_note": None, "reviewed_by": None, "reviewed_at": None,
             "published_at": None, "storage_path": path, "file_name": name, "mime_type": content_type, "size_bytes": len(data),
             "source_attachment_id": None, "download_count": 0, "created_at": _now(), "updated_at": _now(),
-        })
+        }
+        if anonymous:  # колонка з міграції 12; звичайні подання працюють і без неї
+            row["is_anonymous"] = True
+        row = self.s.insert("submissions", row)
         return self._sub_out(row, self._people({self.a.user_id}), private=True)
 
     def my_submissions(self, university_id: str) -> list[Row]:
@@ -408,4 +417,6 @@ class TaskService:
         self.a.require_member(university_id)
         rows = self.s.select("submissions", [("university_id", "eq", university_id), ("author_id", "eq", author_id),
                                              ("status", "eq", "approved")], order="published_at", desc=True, limit=100)
+        if author_id != self.a.user_id:  # анонімні роботи не розкриваємо через профіль автора
+            rows = [r for r in rows if not r.get("is_anonymous")]
         return self._with_context(rows, private=False)

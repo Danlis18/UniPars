@@ -91,7 +91,8 @@ def health(deep: bool = False):
                             ("profiles.is_bot", "profiles", "is_bot"),
                             ("university_memberships.entry_year", "university_memberships", "entry_year"),
                             ("faculties.registration_open", "faculties", "registration_open"),
-                            ("posts.task_id", "posts", "task_id")):
+                            ("posts.task_id", "posts", "task_id"),
+                            ("submissions.is_anonymous", "submissions", "is_anonymous")):
         try:
             get_store().count(table, [(col, "is_null", False)])
             schema[key] = "ok"

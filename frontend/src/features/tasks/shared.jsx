@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Download, ExternalLink, Eye, FileText, Lock, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
 import { api, uploadFile } from "../../lib/api.js";
 import { fileSize } from "../../lib/format.js";
-import { Modal, useToast } from "../../components/ui.jsx";
+import { Avatar, Modal, useToast } from "../../components/ui.jsx";
+import { Link } from "react-router-dom";
 
 // Розділи предмета: порядок вкладок і підписи
 export const KINDS = {
@@ -18,6 +19,14 @@ export const STATUS = {
   approved: { label: "Опубліковано", cls: "bg-primary/15 text-primary" },
   rejected: { label: "Відхилено", cls: "bg-danger/15 text-danger" },
 };
+
+// Автор роботи: посилання на профіль або «Анонімний студент»
+export function AuthorLine({ author, size = 18 }) {
+  const content = <><Avatar user={author.id ? author : { id: "anon", display_name: "?" }} size={size} /><span className="truncate">{author.display_name}</span></>;
+  return author.id
+    ? <Link to={`/u/${author.id}`} className="flex items-center gap-1.5 min-w-0 hover:underline">{content}</Link>
+    : <span className="flex items-center gap-1.5 min-w-0 italic">{content}</span>;
+}
 
 export function StatusChip({ status }) {
   const s = STATUS[status];
@@ -178,6 +187,7 @@ export function FilePicker({ file, onChange, maxMb = 25 }) {
 export function SubmitDialog({ task, open, onClose }) {
   const [file, setFile] = useState(null);
   const [comment, setComment] = useState("");
+  const [anonymous, setAnonymous] = useState(false);
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
   const qc = useQueryClient();
@@ -189,7 +199,7 @@ export function SubmitDialog({ task, open, onClose }) {
     setError(null);
     setProgress(0);
     try {
-      await uploadFile(`/tasks/${task.id}/submissions`, file, setProgress, { comment: comment.trim() });
+      await uploadFile(`/tasks/${task.id}/submissions`, file, setProgress, { comment: comment.trim(), anonymous: anonymous ? "true" : null });
       qc.invalidateQueries({ queryKey: ["task", task.id] });
       qc.invalidateQueries({ queryKey: ["my-submissions"] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
@@ -197,6 +207,7 @@ export function SubmitDialog({ task, open, onClose }) {
       setProgress(null);
       setFile(null);
       setComment("");
+      setAnonymous(false);
       onClose();
     } catch (err) {
       setProgress(null);
@@ -216,6 +227,13 @@ export function SubmitDialog({ task, open, onClose }) {
           <textarea id="sub-comment" className="textarea min-h-[80px]" maxLength={2000} value={comment} onChange={(e) => setComment(e.target.value)}
             placeholder="Наприклад: варіант 7, оцінка 5" />
         </div>
+        <label className="flex items-start gap-3 rounded-xl border border-line px-3 py-2.5 cursor-pointer hover:bg-sunken">
+          <input type="checkbox" className="mt-0.5 w-4 h-4 accent-[rgb(var(--primary))]" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} />
+          <span>
+            <span className="block text-sm font-medium">Опублікувати анонімно</span>
+            <span className="block text-xs text-muted">Інші студенти побачать «Анонімний студент», а робота не з'явиться у вашому профілі для інших. Модератори бачать автора.</span>
+          </span>
+        </label>
         <p className="text-xs text-muted">Після перевірки модератором робота з'явиться серед прикладів до цього завдання. Статус видно в розділі «Мої подання».</p>
         {error && <div className="text-sm text-danger" role="alert">{error}</div>}
         {progress !== null && (

@@ -7,7 +7,7 @@ import { timeAgo } from "../../lib/format.js";
 import { Avatar, Empty, ErrorState, Loading, Modal, useConfirm, useToast } from "../../components/ui.jsx";
 import { PageHeader } from "../../components/PageHeader.jsx";
 import Markdown from "../../components/Markdown.jsx";
-import { BuyReport, DeadlineChip, FileRow, KINDS, StatusChip, SubmitDialog, deadlineInfo, taskLabel } from "./shared.jsx";
+import { AuthorLine, BuyReport, DeadlineChip, FileRow, KINDS, StatusChip, SubmitDialog, deadlineInfo, taskLabel } from "./shared.jsx";
 
 function Section({ id, title, count, children, action }) {
   return (
@@ -170,9 +170,7 @@ export default function TaskPage() {
               <li key={e.id}>
                 <FileRow file={e} linkPath={`/submissions/${e.id}/link`}>
                   <span className="flex items-center gap-1.5 mt-1 text-xs text-muted min-w-0">
-                    <Link to={`/u/${e.author.id}`} className="flex items-center gap-1.5 min-w-0 hover:underline">
-                      <Avatar user={e.author} size={18} /><span className="truncate">{e.author.display_name}</span>
-                    </Link>
+                    <AuthorLine author={e.author} />
                     <span aria-hidden>·</span><time dateTime={e.published_at} className="shrink-0">{timeAgo(e.published_at)}</time>
                   </span>
                 </FileRow>
@@ -198,6 +196,7 @@ export default function TaskPage() {
                 <li key={s.id} className="text-sm">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="break-all">{s.file_name}</span><StatusChip status={s.status} />
+                    {s.is_anonymous && <span className="chip bg-sunken text-muted">анонімно</span>}
                     <span className="text-xs text-muted">{timeAgo(s.created_at)}</span>
                   </div>
                   {s.status === "rejected" && s.review_note && <div className="text-xs text-danger mt-0.5">Причина: {s.review_note}</div>}

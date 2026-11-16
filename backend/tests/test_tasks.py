@@ -161,3 +161,19 @@ def test_file_links_inline_for_preview_and_attachment_for_download(client):
     import base64
     forged = base64.urlsafe_b64encode(base64.urlsafe_b64decode(token)[:-1] + b"a").decode()
     assert client.get(f"/api/files/{forged}?sig={sig}").status_code == 404
+
+
+def test_anonymous_submission_hides_author_from_students_only(client):
+    sub = client.post(f"/api/tasks/{DB1}/submissions", headers=as_user(OLENA, UNI_A),
+                      files={"file": ("anon.pdf", PDF, "application/pdf")}, data={"anonymous": "true"}).json()
+    assert sub["is_anonymous"] is True and sub["author"]["id"] == OLENA  # автор бачить себе
+    queue = client.get("/api/moderation/submissions", headers=as_user(IRYNA, UNI_A)).json()
+    assert next(q for q in queue if q["id"] == sub["id"])["author"]["id"] == OLENA  # модерація бачить автора
+    client.post(f"/api/moderation/submissions/{sub['id']}", json={"action": "approve"}, headers=as_user(IRYNA))
+    ex = next(e for e in client.get(f"/api/tasks/{DB1}", headers=as_user(MAKSYM, UNI_A)).json()["examples"] if e["id"] == sub["id"])
+    assert ex["author"] == {"id": None, "display_name": "Анонімний студент", "avatar_url": None}
+    home = client.get("/api/home", headers=as_user(MAKSYM, UNI_A)).json()["materials"]
+    assert all(m["author"]["id"] != OLENA for m in home if m["id"] == sub["id"])
+    # у профілі Олени для інших анонімної роботи немає, для неї самої — є
+    assert sub["id"] not in {w["id"] for w in client.get(f"/api/users/{OLENA}/works", headers=as_user(MAKSYM, UNI_A)).json()}
+    assert sub["id"] in {w["id"] for w in client.get(f"/api/users/{OLENA}/works", headers=as_user(OLENA, UNI_A)).json()}
