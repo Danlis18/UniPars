@@ -7,7 +7,8 @@ export function PageHeader({ title, subtitle, back = false, actions, children })
   return (
     <header className="sticky top-0 z-20 bg-bg/85 backdrop-blur border-b border-line">
       {(title || actions) && (
-        <div className="flex items-center gap-3 px-4 min-h-[56px] py-2">
+        // md…xl: справа фіксована кнопка допоміжної панелі — залишаємо під неї місце
+        <div className="flex items-center gap-3 px-4 md:pr-16 xl:pr-4 min-h-[56px] py-2">
           {back && <button className="icon-btn -ml-2" onClick={() => nav(-1)} aria-label="Назад"><ArrowLeft size={20} /></button>}
           <div className="flex-1 min-w-0">
             {title && <h1 className="font-display text-lg leading-tight truncate">{title}</h1>}

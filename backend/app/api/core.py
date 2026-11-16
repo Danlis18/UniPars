@@ -41,7 +41,7 @@ def demo_users():
     store = get_store()
     unis = {u["id"]: u["short_name"] for u in store.select("universities")}
     return [{"id": u["id"], "display_name": u["display_name"], "role": u["role"], "note": u["note"],
-             "university": unis.get(u["uni"])} for u in DEMO_USERS]
+             "university": unis.get(u["uni"]), "university_id": u["uni"]} for u in DEMO_USERS]
 
 
 @router.get("/me")

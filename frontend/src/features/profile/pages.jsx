@@ -42,7 +42,7 @@ export function NotificationsPage() {
                 <Bell size={18} className="text-primary mt-0.5 shrink-0" />
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold break-words">{x.title}</span>
-                  {x.body && <span className="block text-sm text-muted line-clamp-2 break-words">{x.body}</span>}
+                  {x.body && <span className="text-sm text-muted line-clamp-2 break-words">{x.body}</span>}
                   <span className="block text-xs text-muted mt-0.5">{timeAgo(x.created_at)}</span>
                 </span>
               </button>

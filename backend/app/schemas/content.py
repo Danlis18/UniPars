@@ -31,6 +31,7 @@ class PostCreate(BaseModel):
     visibility: Literal["university", "group"] = "university"
     material: MaterialIn | None = None
     question: QuestionIn | None = None
+    task_id: str | None = None
 
 
 class PostUpdate(BaseModel):
@@ -95,3 +96,38 @@ class JoinUniversity(BaseModel):
 
 class SubscriptionsSet(BaseModel):
     subject_ids: list[str] = Field(max_length=100)
+
+
+TaskKind = Literal["lab", "practical", "module", "exam"]
+
+
+class TaskCreate(BaseModel):
+    subject_id: str
+    kind: TaskKind
+    number: int = Field(ge=1, le=99)
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=20000)
+    deadline_at: str | None = None
+
+
+class TaskBulkCreate(BaseModel):
+    subject_id: str
+    kind: TaskKind
+    count: int = Field(ge=1, le=30)
+
+
+class TaskUpdate(BaseModel):
+    number: int | None = Field(default=None, ge=1, le=99)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=20000)
+    deadline_at: str | None = None
+
+
+class SubmissionReview(BaseModel):
+    action: Literal["approve", "reject"]
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class AssignMaterial(BaseModel):
+    attachment_id: str
+    task_id: str

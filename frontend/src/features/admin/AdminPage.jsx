@@ -7,6 +7,7 @@ import { timeAgo } from "../../lib/format.js";
 import { useSession } from "../../app/session.jsx";
 import { Empty, ErrorState, Loading, useConfirm, useToast } from "../../components/ui.jsx";
 import { PageHeader, UrlTabs } from "../../components/PageHeader.jsx";
+import { ModerationQueue, UnassignedMaterials } from "../tasks/SubmissionsPages.jsx";
 
 // Кнопки приховано від студентів, але кожна операція окремо перевіряється на backend.
 function useAdmin(key, path, enabled = true) {
@@ -257,12 +258,15 @@ export default function AdminPage() {
   const { isAdmin, isStaff } = useSession();
   const [params] = useSearchParams();
   if (!isStaff) return <Empty title="Немає доступу">Цей розділ доступний модераторам та адміністраторам університету.</Empty>;
-  const tab = params.get("tab") || "overview";
-  const tabs = [{ value: "overview", label: "Огляд" }, { value: "reports", label: "Скарги" },
+  const tab = params.get("tab") || "submissions";
+  const tabs = [{ value: "submissions", label: "Подання" }, { value: "assign", label: "Розподіл" },
+    { value: "overview", label: "Огляд" }, { value: "reports", label: "Скарги" },
     ...(isAdmin ? [{ value: "members", label: "Учасники" }, { value: "catalog", label: "Каталог" }, { value: "news", label: "Новини" }] : [])];
   return (
     <>
-      <PageHeader title="Керування університетом"><UrlTabs param="tab" defaultValue="overview" tabs={tabs} /></PageHeader>
+      <PageHeader title="Керування університетом"><UrlTabs param="tab" defaultValue="submissions" tabs={tabs} /></PageHeader>
+      {tab === "submissions" && <ModerationQueue />}
+      {tab === "assign" && <UnassignedMaterials />}
       {tab === "overview" && <Overview />}
       {tab === "reports" && <Reports />}
       {isAdmin && tab === "members" && <Members />}

@@ -76,7 +76,7 @@ export async function api(path, { method = "GET", body, query, signal } = {}) {
 }
 
 // Завантаження файлу з прогресом (XHR підтримує upload.onprogress)
-export async function uploadFile(path, file, onProgress) {
+export async function uploadFile(path, file, onProgress, fields = {}) {
   const h = await headers();
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -92,6 +92,7 @@ export async function uploadFile(path, file, onProgress) {
     xhr.onerror = () => reject(new ApiError(0, "Немає з'єднання з сервером"));
     const fd = new FormData();
     fd.append("file", file);
+    Object.entries(fields).forEach(([k, v]) => v != null && fd.append(k, v));
     xhr.send(fd);
   });
 }

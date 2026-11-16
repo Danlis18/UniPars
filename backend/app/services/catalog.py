@@ -146,8 +146,17 @@ class CatalogService:
         posts = self.s.select("posts", [("university_id", "eq", university_id)])
         counts: dict[str, int] = {}
         for p in posts:
-            if self.a.can_view_post(p):
+            if p["type"] == "question" and self.a.can_view_post(p):
                 counts[p["subject_id"]] = counts.get(p["subject_id"], 0) + 1
+        task_subject = {t["id"]: t["subject_id"] for t in self.s.select("tasks", [("university_id", "eq", university_id)])}
+        task_counts: dict[str, int] = {}
+        for sid_ in task_subject.values():
+            task_counts[sid_] = task_counts.get(sid_, 0) + 1
+        example_counts: dict[str, int] = {}
+        for r in self.s.select("submissions", [("university_id", "eq", university_id), ("status", "eq", "approved")]):
+            sj = task_subject.get(r["task_id"])
+            if sj:
+                example_counts[sj] = example_counts.get(sj, 0) + 1
         links = self.s.select("subject_programs", [("university_id", "eq", university_id)])
         ctx = self.my_context(university_id) if scope in ("program", "course") else {}
         out = []
@@ -167,6 +176,8 @@ class CatalogService:
             else:
                 elective = bool(sp) and all(x.get("is_elective") for x in sp)
             out.append({**r, "subscribed": r["id"] in subs, "post_count": counts.get(r["id"], 0),
+                        "question_count": counts.get(r["id"], 0), "task_count": task_counts.get(r["id"], 0),
+                        "example_count": example_counts.get(r["id"], 0),
                         "courses": courses_all,
                         "semesters": sorted({s for x in sp for s in (x.get("semesters") or ([x["semester"]] if x.get("semester") else []))}),
                         "program_ids": [x["program_id"] for x in sp], "is_elective": elective})

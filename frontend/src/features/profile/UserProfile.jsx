@@ -7,6 +7,7 @@ import { useSession } from "../../app/session.jsx";
 import { Avatar, Empty, ErrorState, Loading, Modal, useConfirm, useToast } from "../../components/ui.jsx";
 import { PageHeader, UrlTabs } from "../../components/PageHeader.jsx";
 import PostList from "../feed/PostList.jsx";
+import { FileRow, taskFullTitle, useFileOpener } from "../tasks/shared.jsx";
 import { CoverPicker, ProfileCover } from "./Covers.jsx";
 import { MessageButton } from "../messages/MessagesPage.jsx";
 
@@ -177,11 +178,37 @@ const plural = (n, one, few, many) => {
   return many;
 };
 
+// Опубліковані (схвалені модерацією) роботи користувача
+function PublishedWorks({ userId, isMe }) {
+  const { activeUniversityId } = useSession();
+  const open = useFileOpener();
+  const q = useQuery({ queryKey: ["works", activeUniversityId, userId], queryFn: () => api(`/users/${userId}/works`) });
+  if (q.isLoading) return <Loading />;
+  if (q.isError) return <ErrorState error={q.error} onRetry={q.refetch} />;
+  if (!q.data.length) return (
+    <Empty title={isMe ? "Ще немає опублікованих робіт" : "Тут поки порожньо"}>
+      {isMe ? <>Подайте свій варіант на сторінці завдання. Статус перевірки — у розділі <Link to="/submissions" className="text-primary hover:underline">«Мої подання»</Link>.</> : null}
+    </Empty>
+  );
+  return (
+    <ul className="p-4 space-y-3">
+      {q.data.map((w) => (
+        <li key={w.id}>
+          <Link to={`/tasks/${w.task.id}`} className="block text-xs text-muted hover:text-primary mb-1 break-words">
+            {w.subject?.name} · {taskFullTitle(w.task)}
+          </Link>
+          <FileRow file={w} onOpen={() => open(`/submissions/${w.id}/link`)} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function UserProfile() {
   const { id } = useParams();
   const { me } = useSession();
   const [params] = useSearchParams();
-  const tab = params.get("tab") || "posts";
+  const tab = params.get("tab") || "works";
   const [list, setList] = useState(null);
   const [editing, setEditing] = useState(false);
   const userId = id === "me" ? me.id : id;
@@ -191,11 +218,11 @@ export default function UserProfile() {
   if (q.isError) return <><PageHeader back title="Профіль" /><ErrorState error={q.error} onRetry={q.refetch} /></>;
   const p = q.data;
   const ctx = p.context;
-  const type = { posts: undefined, materials: "material", questions: "question", explanations: "explanation" }[tab];
+  const type = { questions: "question", archive: "legacy" }[tab];
 
   return (
     <>
-      <PageHeader back title={p.display_name} subtitle={`${p.posts} ${plural(p.posts, "допис", "дописи", "дописів")}`} />
+      <PageHeader back title={p.display_name} />
       <div className="relative">
         <ProfileCover cover={p.cover} />
         <div className="px-4 pb-4 border-b border-line">
@@ -235,15 +262,15 @@ export default function UserProfile() {
         </div>
       </div>
       <div className="sticky top-[56px] z-10 bg-bg/90 backdrop-blur border-b border-line">
-        <UrlTabs param="tab" defaultValue="posts" tabs={[
-          { value: "posts", label: "Усе" }, { value: "materials", label: "Роботи" },
-          { value: "questions", label: "Запитання" }, { value: "explanations", label: "Пояснення" },
+        <UrlTabs param="tab" defaultValue="works" tabs={[
+          { value: "works", label: "Роботи" }, { value: "questions", label: "Питання" },
+          ...(p.legacy_posts ? [{ value: "archive", label: "Архів" }] : []),
           { value: "followers", label: `Читачі · ${p.followers}` }, { value: "following", label: `Читає · ${p.following}` },
         ]} />
       </div>
-      {tab === "followers" || tab === "following" ? <PeopleRows userId={p.id} kind={tab} /> : (
+      {tab === "followers" || tab === "following" ? <PeopleRows userId={p.id} kind={tab} /> : tab === "works" ? <PublishedWorks userId={p.id} isMe={p.is_me} /> : (
       <PostList query={{ author_id: p.id, type, tab: "university" }}
-        empty={<Empty title={p.is_me ? "Ви ще нічого не публікували" : "Тут поки порожньо"}>{p.is_me ? "Поділіться конспектом, лабораторною або поставте запитання." : null}</Empty>} />
+        empty={<Empty title={p.is_me ? "Ви ще не ставили питань" : "Тут поки порожньо"}>{p.is_me ? "Питання ставлять у вкладці «Питання» потрібного предмета." : null}</Empty>} />
       )}
       {list && <PeopleList userId={p.id} kind={list} onClose={() => setList(null)} />}
       {editing && <EditProfile profile={p} onClose={() => setEditing(false)} />}

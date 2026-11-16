@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, ai, core, messages, posts, social
+from app.api import admin, ai, core, messages, posts, social, tasks
 from app.core.config import get_settings
 from app.core.deps import get_store
 from app.services.bots import bots_loop
@@ -52,7 +52,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (core.router, posts.router, social.router, messages.router, ai.router, admin.router):
+for r in (core.router, posts.router, tasks.router, social.router, messages.router, ai.router, admin.router):
     app.include_router(r, prefix="/api")
 
 
@@ -79,7 +79,7 @@ def health(deep: bool = False):
     # Перевірка схеми: чи застосовані міграції (лише кількість записів, без даних)
     schema = {}
     for table in ("faculties", "programs", "study_groups", "subjects", "topics", "news_sources",
-                  "follows", "dm_conversations", "dm_messages"):
+                  "follows", "dm_conversations", "dm_messages", "tasks", "task_files", "submissions"):
         try:
             schema[table] = get_store().count(table)
         except Exception:
@@ -90,7 +90,8 @@ def health(deep: bool = False):
                             ("subject_programs.courses", "subject_programs", "courses"),
                             ("profiles.is_bot", "profiles", "is_bot"),
                             ("university_memberships.entry_year", "university_memberships", "entry_year"),
-                            ("faculties.registration_open", "faculties", "registration_open")):
+                            ("faculties.registration_open", "faculties", "registration_open"),
+                            ("posts.task_id", "posts", "task_id")):
         try:
             get_store().count(table, [(col, "is_null", False)])
             schema[key] = "ok"

@@ -48,6 +48,7 @@ class SocialService:
             "telegram": p.get("telegram"), "cover": p.get("cover"), "created_at": p.get("created_at"),
             "is_bot": bool(p.get("is_bot")),
             "followers": followers, "following": following, "posts": len(posts),
+            "legacy_posts": sum(1 for x in posts if x["type"] in ("material", "explanation")),
             "useful": sum(x.get("useful_count", 0) for x in posts),
             "is_me": user_id == self.a.user_id, "is_following": is_following, "follows_you": follows_you,
             # Писати можна тому, хто підписаний на вас, або якщо діалог уже існує

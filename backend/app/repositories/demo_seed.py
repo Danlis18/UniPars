@@ -183,6 +183,8 @@ def seed(store) -> None:  # noqa: C901 — лінійний сценарій з�
          "Матеріал університету «Класичний» — не має бути видимим студентам інших університетів.", 12, useful=3,
          material={"kind": "notes", "course": 1, "semester": 2})
 
+    _seed_tasks(store, sid, olena, maksym, iryna, andrii)
+
     for uni, label in ((UNI_A, "Політех"), (UNI_B, "Класичний")):
         src = did(f"news:{uni}")
         store.insert("news_sources", {"id": src, "university_id": uni, "kind": "manual", "name": f"Оголошення ({label}, демо)",
@@ -198,3 +200,78 @@ def seed(store) -> None:  # noqa: C901 — лінійний сценарій з�
             store.insert("news_items", {"source_id": src, "university_id": uni, "external_id": f"demo-{i}",
                                         "title": f"[ДЕМО] {title}", "summary": summary, "url": None,
                                         "published_at": ago(h), "fetched_at": ago(0), "is_demo": True})
+
+
+def ahead(hours: float) -> str:
+    return (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat()
+
+
+# Мінімальний коректний PDF для демо-файлів (відкривається переглядачем)
+DEMO_PDF = (b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj "
+            b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 120]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj "
+            b"4 0 obj<</Length 44>>stream\nBT /F1 14 Tf 20 60 Td (UniPars demo) Tj ET\nendstream endobj "
+            b"5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF")
+
+
+def _seed_tasks(store, sid, olena, maksym, iryna, andrii) -> None:
+    """ДЕМО-завдання, приклади виконання й подання на модерації (файли — у локальному сховищі демо)."""
+    from app.core.config import get_settings
+    from app.repositories.storage import LocalStorage
+
+    s = get_settings()
+    storage = LocalStorage(s.demo_upload_dir, s.file_link_secret)
+
+    def task(key, subj, kind, number, title, desc="", deadline_h=None):
+        tid = did(f"task:{key}")
+        store.insert("tasks", {"id": tid, "university_id": UNI_A, "subject_id": sid[subj], "kind": kind, "number": number,
+                               "title": title, "description": desc, "deadline_at": ahead(deadline_h) if deadline_h else None,
+                               "created_by": andrii, "created_at": ago(200), "updated_at": ago(200)})
+        return tid
+
+    db1 = task("db-lab1", "db", "lab", 1, "Проєктування ER-моделі",
+               "Побудуйте ER-діаграму предметної області «Бібліотека»: сутності, атрибути, зв'язки та кардинальності. "
+               "Звіт: діаграма, опис сутностей і висновки.", 72)
+    db2 = task("db-lab2", "db", "lab", 2, "Нормалізація до 3НФ",
+               "Зведіть таблицю «Замовлення» до третьої нормальної форми, покажіть функціональні залежності на кожному кроці.", 240)
+    task("db-lab3", "db", "lab", 3, "SQL-запити: вибірка та з'єднання",
+         "Напишіть 10 запитів до навчальної бази: фільтрація, сортування, JOIN, групування.")
+    task("db-pr1", "db", "practical", 1, "Реляційна алгебра", "Розв'яжіть 6 задач на операції реляційної алгебри.")
+    task("db-mod1", "db", "module", 1, "Модульна контрольна №1", "Теми: ER-модель, нормалізація, базовий SQL.", 336)
+    task("db-exam", "db", "exam", 1, "Екзамен", "Перелік питань до екзамену та вимоги до практичної частини.")
+    a1 = task("algo-lab1", "algo", "lab", 1, "Сортування: порівняння алгоритмів",
+              "Реалізуйте сортування вставками, злиттям і швидке; порівняйте час на масивах 10³–10⁶ елементів.", 120)
+    task("algo-lab2", "algo", "lab", 2, "Графи: пошук у ширину та глибину")
+
+    def sub(key, task_id, author, status, hours, note=None, downloads=0):
+        path = f"{UNI_A}/submissions/{task_id}/{key}.pdf"
+        storage.put(path, DEMO_PDF, "application/pdf")
+        store.insert("submissions", {
+            "id": did(f"sub:{key}"), "task_id": task_id, "university_id": UNI_A, "author_id": author,
+            "comment": "Перевірте, будь ласка, оформлення." if status == "pending" else "",
+            "status": status, "review_note": note, "reviewed_by": iryna if status != "pending" else None,
+            "reviewed_at": ago(hours - 1) if status != "pending" else None,
+            "published_at": ago(hours - 1) if status == "approved" else None,
+            "storage_path": path, "file_name": f"{key}.pdf", "mime_type": "application/pdf", "size_bytes": len(DEMO_PDF),
+            "source_attachment_id": None, "download_count": downloads, "created_at": ago(hours), "updated_at": ago(hours)})
+
+    sub("db-lab1-iryna", db1, iryna, "approved", 48)
+    sub("db-lab1-maksym", db1, maksym, "approved", 30)
+    sub("algo-lab1-andrii", a1, andrii, "approved", 20)
+    sub("db-lab2-olena", db2, olena, "pending", 2)
+    sub("db-lab2-maksym", db2, maksym, "rejected", 26, note="Бракує функціональних залежностей для 2НФ — додайте їх і подайте ще раз.")
+
+    # Старий матеріал із файлом — для розподілу адміністратором
+    att_path = f"{UNI_A}/legacy/normalization.pdf"
+    storage.put(att_path, DEMO_PDF, "application/pdf")
+    store.insert("attachments", {"id": did("att:normalization"), "post_id": did("post:normalization"), "university_id": UNI_A,
+                                 "uploader_id": iryna, "storage_path": att_path, "file_name": "normalization-3nf.pdf",
+                                 "mime_type": "application/pdf", "size_bytes": len(DEMO_PDF), "created_at": ago(30)})
+
+    # Питання форуму, прив'язане до лабораторної
+    store.insert("posts", {
+        "id": did("post:db-lab1-q"), "university_id": UNI_A, "author_id": olena, "type": "question", "subject_id": sid["db"],
+        "topic_id": None, "task_id": db1, "title": "Чи треба в ER-діаграмі показувати слабкі сутності окремо?",
+        "body": "У лабораторній №1 є сутність «Примірник книги» — чи позначати її як слабку?", "visibility": "university",
+        "group_id": None, "status": "open", "accepted_comment_id": None, "is_hidden": False, "is_demo": True,
+        "useful_count": 1, "comment_count": 0, "created_at": ago(5), "updated_at": ago(5)})
+    store.insert("question_details", {"post_id": did("post:db-lab1-q"), "university_id": UNI_A, "tried": "", "unclear_step": ""})

@@ -1,34 +1,164 @@
 import { expect, test } from "@playwright/test";
-import { loginAs } from "./helpers.js";
+import { api, loginAs } from "./helpers.js";
 
-test.describe("Дописи, файли, коментарі", () => {
-  test("студент ставить запитання, інший відповідає, автор приймає відповідь", async ({ page, request }) => {
-    const title = `E2E: як працює рекурсія ${Date.now()}`;
-    await loginAs(page, request, "Олена", "/questions?compose=question");
-    const dialog = page.getByRole("dialog");
-    await dialog.getByLabel("Предмет *").selectOption({ label: "Алгоритми і структури даних" });
-    await dialog.getByLabel("Короткий заголовок *").fill(title);
-    await dialog.getByLabel("Умова або опис проблеми").fill("Чому `fib(40)` рахується так довго?");
-    await dialog.getByLabel("Що вже пробував").fill("Додав print — бачу багато повторних викликів");
+const PDF = (label) => ({ name: `${label}.pdf`, mimeType: "application/pdf", buffer: Buffer.from(`%PDF-1.4\n% ${label}\n`) });
+
+// Ідентифікатор завдання за предметом і номером (через API, щоб тест не залежав від порядку карток)
+async function taskId(request, user, slug, kind, number) {
+  const r = await api(request, user, "GET", `/subjects/${slug}/tasks?kind=${kind}`);
+  return (await r.json()).items.find((t) => t.number === number).id;
+}
+
+// window.open підмінюємо: перевіряємо, що тимчасове посилання справді віддає файл
+async function captureOpen(page) {
+  await page.evaluate(() => {
+    window.__opened = null;
+    window.open = () => { const w = { close() {}, location: {} }; Object.defineProperty(w.location, "href", { set: (u) => { window.__opened = u; } }); return w; };
+  });
+}
+
+test.describe("Навчальний посібник: завдання, подання, модерація", () => {
+  test("від предмета до завдання → подання → схвалення → приклад на сторінці завдання", async ({ page, request }) => {
+    const file = `e2e-approve-${Date.now()}`;
+    await loginAs(page, request, "Олена", "/subjects");
+    await page.locator("#main").getByRole("link", { name: /Бази даних/ }).click();
+    await expect(page.getByRole("tab", { name: /Лабораторні/ })).toHaveAttribute("aria-selected", "true");
+    await page.getByRole("link", { name: /Нормалізація до 3НФ/ }).click();
+    await expect(page.getByRole("heading", { name: "Нормалізація до 3НФ", level: 1 })).toBeVisible();
+    // Порядок блоків: умова → приклади → подання → «Купити звіт»
+    const order = await page.locator("#main h2, #main button").evaluateAll((els) => els.map((e) => e.textContent.trim()));
+    const idx = (re) => order.findIndex((t) => re.test(t));
+    expect(idx(/^Умова завдання/)).toBeLessThan(idx(/^Приклади виконання/));
+    expect(idx(/^Приклади виконання/)).toBeLessThan(idx(/Купити звіт/));
+
+    await page.getByRole("button", { name: "Подати свій варіант" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Подати свій варіант" });
+    await expect(dialog.getByText("Бази даних")).toBeVisible(); // предмет і завдання підставлено
+    await dialog.locator("input[type=file]").setInputFiles(PDF(file));
+    await dialog.getByLabel(/Коментар для модератора/).fill("Варіант 3");
+    await dialog.getByRole("button", { name: "Надіслати на розгляд" }).click();
+    await expect(page.getByText("Роботу надіслано на розгляд")).toBeVisible();
+    await expect(page.getByText(`${file}.pdf`)).toBeVisible();
+    await expect(page.getByText("На розгляді").first()).toBeVisible();
+    const taskUrl = new URL(page.url()).pathname;
+
+    await page.goto("/submissions");
+    await expect(page.locator("#main li", { hasText: `${file}.pdf` }).getByText("На розгляді")).toBeVisible();
+
+    // Інший студент поки не бачить роботу
+    await loginAs(page, request, "Максим", taskUrl);
+    await expect(page.getByText(`${file}.pdf`)).toHaveCount(0);
+
+    // Модераторка відкриває файл і схвалює
+    await loginAs(page, request, "Ірина", "/admin");
+    const card = page.locator("#main li", { hasText: `${file}.pdf` });
+    await captureOpen(page);
+    await card.getByRole("button", { name: new RegExp(`${file}\\.pdf`) }).click();
+    await expect.poll(() => page.evaluate(() => window.__opened)).toContain("/api/files/");
+    const res = await request.get(await page.evaluate(() => window.__opened));
+    expect((await res.body()).subarray(0, 4).toString()).toBe("%PDF");
+    await card.getByRole("button", { name: "Схвалити й опублікувати" }).click();
+    await expect(page.getByText("Роботу опубліковано біля завдання")).toBeVisible();
+
+    // Тепер приклад видно всім біля завдання
+    await loginAs(page, request, "Максим", taskUrl);
+    await expect(page.locator("section", { has: page.getByRole("heading", { name: /Приклади виконання/ }) }).getByText(`${file}.pdf`)).toBeVisible();
+    await loginAs(page, request, "Олена", "/submissions");
+    await expect(page.locator("#main li", { hasText: `${file}.pdf` }).getByText("Опубліковано")).toBeVisible();
+  });
+
+  test("відхилення з причиною: автор бачить причину, інші не бачать роботу", async ({ page, request }) => {
+    const file = `e2e-reject-${Date.now()}`;
+    const maksym = await loginAs(page, request, "Максим");
+    const id = await taskId(request, maksym, "db", "lab", 3);
+    await page.goto(`/tasks/${id}`);
+    await page.getByRole("button", { name: "Подати свій варіант" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Подати свій варіант" });
+    await dialog.locator("input[type=file]").setInputFiles(PDF(file));
+    await dialog.getByRole("button", { name: "Надіслати на розгляд" }).click();
+    await expect(page.getByText("Роботу надіслано на розгляд")).toBeVisible();
+
+    await loginAs(page, request, "Ірина", "/admin");
+    const card = page.locator("#main li", { hasText: `${file}.pdf` });
+    await card.getByRole("button", { name: "Відхилити" }).click();
+    await expect(card.getByRole("button", { name: "Відхилити" })).toBeDisabled(); // без причини не можна
+    await card.getByLabel(/Причина відхилення/).fill("Бракує висновків");
+    await card.getByRole("button", { name: "Відхилити" }).click();
+    await expect(page.getByText("Роботу відхилено")).toBeVisible();
+
+    await loginAs(page, request, "Максим", "/submissions");
+    const mine = page.locator("#main li", { hasText: `${file}.pdf` });
+    await expect(mine.getByText("Відхилено")).toBeVisible();
+    await expect(mine.getByText("Бракує висновків")).toBeVisible();
+    await loginAs(page, request, "Олена", `/tasks/${id}`);
+    await expect(page.getByText(`${file}.pdf`)).toHaveCount(0);
+  });
+
+  test("звичайний студент не має доступу до модерації", async ({ page, request }) => {
+    await loginAs(page, request, "Олена", "/admin");
+    await expect(page.getByText("Немає доступу")).toBeVisible();
+    const olena = await loginAs(page, request, "Олена");
+    const r = await api(request, olena, "GET", "/moderation/submissions");
+    expect(r.status()).toBe(403);
+  });
+
+  test("непідтримуваний файл: зрозуміла помилка в діалозі подання", async ({ page, request }) => {
+    const olena = await loginAs(page, request, "Олена");
+    await page.goto(`/tasks/${await taskId(request, olena, "db", "lab", 1)}`);
+    await page.getByRole("button", { name: "Подати свій варіант" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Подати свій варіант" });
+    await dialog.locator("input[type=file]").setInputFiles({ name: "virus.exe", mimeType: "application/octet-stream", buffer: Buffer.from("MZ") });
+    await dialog.getByRole("button", { name: "Надіслати на розгляд" }).click();
+    await expect(dialog.getByRole("alert")).toContainText("Непідтримуваний тип файлу");
+  });
+
+  test("«Купити звіт» — анонс із позначкою «Скоро»", async ({ page, request }) => {
+    const olena = await loginAs(page, request, "Олена");
+    await page.goto(`/tasks/${await taskId(request, olena, "db", "lab", 1)}`);
+    await expect(page.getByText(/Скоро тут можна буде замовити окремий варіант звіту/).first()).toBeVisible();
+    await page.getByRole("button", { name: /Купити звіт/ }).click();
+    const dialog = page.getByRole("dialog", { name: "Купити звіт" });
+    await expect(dialog.getByText("Скоро", { exact: true })).toBeVisible();
+    await expect(dialog.getByText(/ШІ адаптуватиме структуру/)).toBeVisible();
+    await expect(dialog.getByText(/грн|₴|\$/)).toHaveCount(0); // без цін
+  });
+});
+
+test.describe("Форум предмета", () => {
+  test("питання з прив'язкою до лабораторної, відповідь і прийняття", async ({ page, request }) => {
+    const title = `E2E: як оформити SQL-запити ${Date.now()}`;
+    await loginAs(page, request, "Олена", "/subjects/db?tab=questions");
+    await page.getByRole("button", { name: "Поставити питання" }).click();
+    const dialog = page.getByRole("dialog", { name: "Нове питання" });
+    await dialog.getByLabel("Питання").fill(title);
+    await dialog.getByLabel(/Подробиці/).fill("Чи треба коментувати кожен запит?");
+    await dialog.getByLabel("Стосується завдання").selectOption({ label: "№3 · SQL-запити: вибірка та з'єднання" });
     await dialog.getByRole("button", { name: "Опублікувати" }).click();
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
-    await expect(page.getByText("Відкрите")).toBeVisible();
-    const postUrl = page.url();
+    await expect(page.getByRole("navigation", { name: "Шлях" }).getByRole("link", { name: /№3/ })).toBeVisible();
+    const url = new URL(page.url()).pathname;
 
-    await loginAs(page, request, "Максим", new URL(postUrl).pathname);
-    await page.getByPlaceholder(/Поясни хід розв'язання/).fill("Використай **мемоізацію**: зберігай уже пораховані значення.");
+    // У списку тем предмета: заголовок, дата, кількість відповідей
+    await page.goto("/subjects/db?tab=questions");
+    await expect(page.locator("#main li", { hasText: title }).getByText("відп.")).toBeVisible();
+
+    await loginAs(page, request, "Максим", url);
+    await page.getByPlaceholder(/Поясни хід розв'язання|Напишіть коментар/).fill("Так, коротко: **що** робить запит.");
     await page.getByRole("button", { name: "Коментувати" }).click();
-    await expect(page.getByText("мемоізацію")).toBeVisible();
+    await expect(page.getByText("що робить запит")).toBeVisible();
 
-    await loginAs(page, request, "Олена", new URL(postUrl).pathname);
+    await loginAs(page, request, "Олена", url);
     await page.getByRole("button", { name: "Прийняти відповідь" }).click();
     await expect(page.getByText("Прийнята відповідь")).toBeVisible();
-    await expect(page.getByText("Вирішене").first()).toBeVisible();
+
+    // Питання не потрапляють на головну
+    await page.goto("/");
+    await expect(page.getByText(title)).toHaveCount(0);
   });
 
   test("відповідь на коментар з'являється гілкою і надсилає сповіщення", async ({ page, request }) => {
-    await loginAs(page, request, "Максим", "/questions");
-    await page.locator("article a[id^='t-']").first().click();
+    await loginAs(page, request, "Максим", "/subjects/linalg?tab=questions");
+    await page.locator("#main li a").first().click();
     await page.getByPlaceholder(/Поясни хід|Напишіть коментар/).fill("Корінний коментар E2E");
     await page.getByRole("button", { name: "Коментувати" }).click();
     const root = page.locator("[id^='c-']", { hasText: "Корінний коментар E2E" }).first();
@@ -44,43 +174,6 @@ test.describe("Дописи, файли, коментарі", () => {
 
     await loginAs(page, request, "Максим", "/notifications");
     await expect(page.getByText("відповів(ла) на ваш коментар").first()).toBeVisible();
-  });
-
-  test("матеріал з PDF: прогрес завантаження і відкриття файлу", async ({ page, request }) => {
-    const title = `E2E конспект ${Date.now()}`;
-    await loginAs(page, request, "Олена", "/?compose=material");
-    const dialog = page.getByRole("dialog");
-    await dialog.getByLabel("Предмет *").selectOption({ label: "Бази даних" });
-    await dialog.getByLabel("Назва *").fill(title);
-    await dialog.locator("input[type=file]").setInputFiles({ name: "notes.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n% e2e test\n") });
-    await expect(dialog.getByText("notes.pdf")).toBeVisible();
-    await dialog.getByRole("button", { name: "Опублікувати" }).click();
-    await expect(page.getByRole("heading", { name: title })).toBeVisible();
-    // Перехоплюємо window.open і перевіряємо, що тимчасове посилання справді віддає файл
-    await page.evaluate(() => { window.__opened = null; window.open = (u) => { window.__opened = u; return null; }; });
-    await page.getByRole("button", { name: /notes\.pdf/ }).click();
-    await expect.poll(() => page.evaluate(() => window.__opened)).toContain("/api/files/");
-    const fileUrl = await page.evaluate(() => window.__opened);
-    const res = await request.get(fileUrl);
-    expect(res.status()).toBe(200);
-    expect((await res.body()).subarray(0, 4).toString()).toBe("%PDF");
-  });
-
-  test("непідтримуваний файл відхиляється ще до відправлення", async ({ page, request }) => {
-    await loginAs(page, request, "Олена", "/?compose=material");
-    const dialog = page.getByRole("dialog");
-    await dialog.locator("input[type=file]").setInputFiles({ name: "virus.exe", mimeType: "application/octet-stream", buffer: Buffer.from("MZ") });
-    await expect(dialog.getByText("Непідтримуваний формат")).toBeVisible();
-  });
-
-  test("«Корисно» і «Зберегти» працюють і потрапляють у Збережене", async ({ page, request }) => {
-    await loginAs(page, request, "Максим");
-    const card = page.locator("article").first();
-    const title = await card.locator("a[id^='t-']").innerText();
-    await card.getByRole("button", { name: "Зберегти" }).click();
-    await expect(page.getByText("Додано до збереженого")).toBeVisible();
-    await page.goto("/saved");
-    await expect(page.getByRole("link", { name: title })).toBeVisible();
   });
 });
 
@@ -141,8 +234,8 @@ test.describe("Соцфункції та повідомлення", () => {
     const panel = page.getByRole("dialog", { name: "Допомога UniPars" });
     await expect(panel).toBeVisible();
     await expect(panel.getByText("Відкриється незабаром")).toBeVisible(); // AI — SOON
-    await panel.getByRole("button", { name: /Знайти матеріал/ }).click();
-    await expect(page).toHaveURL(/\/materials/);
+    await panel.getByRole("button", { name: /Знайти приклад/ }).click();
+    await expect(page).toHaveURL(/\/subjects/);
   });
 });
 

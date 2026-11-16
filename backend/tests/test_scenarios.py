@@ -31,7 +31,7 @@ def test_other_university_cannot_read_private_material(client):
 def test_cannot_post_into_foreign_subject(client):
     foreign_subject = did("subj:micro")
     r = client.post("/api/posts", headers=as_user(OLENA, UNI_A),
-                    json={"type": "explanation", "title": "x", "body": "y", "subject_id": foreign_subject})
+                    json={"type": "question", "title": "x", "body": "y", "subject_id": foreign_subject})
     assert r.status_code == 400
 
 
@@ -107,16 +107,21 @@ def test_question_answer_accept_flow(client):
     assert any(n["kind"] == "answer_accepted" for n in m_notes["items"])
 
 
-def test_material_bookmark_and_search(client):
+def test_question_bookmark_and_search(client):
     h = as_user(MAKSYM, UNI_A)
-    m = client.post("/api/posts", headers=h, json={
+    # Довільні публічні матеріали вимкнено: роботи подаються зі сторінки завдання
+    r = client.post("/api/posts", headers=h, json={
         "type": "material", "title": "Шпаргалка з SQL JOIN", "body": "INNER, LEFT, RIGHT", "subject_id": did("subj:db"),
-        "topic_id": did("topic:db:SQL"), "material": {"kind": "notes", "course": 2}}).json()
-    assert m["material"]["kind"] == "notes" and m["topic"]["name"] == "SQL"
+        "material": {"kind": "notes"}})
+    assert r.status_code == 400
+    m = client.post("/api/posts", headers=h, json={
+        "type": "question", "title": "Чим LEFT JOIN відрізняється від INNER?", "body": "Плутаюсь у NULL", "subject_id": did("subj:db"),
+        "topic_id": did("topic:db:SQL")}).json()
+    assert m["topic"]["name"] == "SQL" and m["status"] == "open"
     assert client.post(f"/api/posts/{m['id']}/bookmark", headers=as_user(OLENA)).json()["saved"]
     saved = client.get("/api/posts?saved=true", headers=as_user(OLENA, UNI_A)).json()["items"]
     assert [p["id"] for p in saved] == [m["id"]]
-    found = client.get("/api/posts?q=join&type=material&kind=notes", headers=h).json()["items"]
+    found = client.get("/api/posts?q=join&type=question", headers=h).json()["items"]
     assert m["id"] in {p["id"] for p in found}
     # Редагувати чужий допис не можна
     assert client.patch(f"/api/posts/{m['id']}", json={"title": "x"}, headers=as_user(OLENA)).status_code == 403

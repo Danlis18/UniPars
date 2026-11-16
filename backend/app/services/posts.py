@@ -30,6 +30,37 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def validate_file(file_name: str, content_type: str, data: bytes, max_mb: int) -> tuple[str, str]:
+    """Перевірка завантаження: тип, розширення, розмір і магічні байти. Повертає (безпечна назва, формат)."""
+    name = re.sub(r"[^\w.\- ]", "_", file_name)[:120] or "file"
+    ext = "." + name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    fmt = ALLOWED_TYPES.get(content_type)
+    if not fmt or ext not in EXT:
+        raise HTTPException(415, "Непідтримуваний тип файлу. Дозволено: PDF, DOCX, PPTX, зображення (PNG, JPG, WEBP, GIF), ZIP")
+    if len(data) == 0:
+        raise HTTPException(400, "Файл порожній")
+    if len(data) > max_mb * 1024 * 1024:
+        raise HTTPException(413, f"Файл завеликий. Максимум {max_mb} МБ")
+    if not any(data.startswith(sig) for sig in MAGIC[fmt]):
+        raise HTTPException(415, "Вміст файлу не відповідає його формату")
+    return name, fmt
+
+
+def file_out(r: Row) -> Row:
+    fmt = ALLOWED_TYPES.get(r["mime_type"], r["file_name"].rsplit(".", 1)[-1].upper())
+    return {"id": r["id"], "file_name": r["file_name"], "mime_type": r["mime_type"], "size_bytes": r["size_bytes"],
+            "format": fmt, "previewable": fmt in PREVIEWABLE}
+
+
+def path_in_use(store: Store, path: str, *, skip_table: str, skip_id: str) -> bool:
+    """Один файл може належати і старому допису, і опублікованому прикладу — не видаляємо його, поки він потрібен."""
+    for table in ("attachments", "submissions", "task_files"):
+        for r in store.select(table, [("storage_path", "eq", path)]):
+            if not (table == skip_table and r["id"] == skip_id):
+                return True
+    return False
+
+
 class PostService:
     def __init__(self, store: Store, access: Access) -> None:
         self.s = store
@@ -51,6 +82,8 @@ class PostService:
         subjects = {r["id"]: r for r in self.s.select("subjects", [("id", "in", list({p["subject_id"] for p in posts}))])}
         topic_ids = [p["topic_id"] for p in posts if p.get("topic_id")]
         topics = {r["id"]: r for r in self.s.select("topics", [("id", "in", topic_ids)])} if topic_ids else {}
+        task_ids = [p["task_id"] for p in posts if p.get("task_id")]
+        tasks = {r["id"]: r for r in self.s.select("tasks", [("id", "in", task_ids)])} if task_ids else {}
         materials = {r["post_id"]: r for r in self.s.select("material_details", [("post_id", "in", ids)])}
         questions = {r["post_id"]: r for r in self.s.select("question_details", [("post_id", "in", ids)])} if full else {}
         atts: dict[str, list] = {}
@@ -70,6 +103,8 @@ class PostService:
                 "author": authors.get(p["author_id"], {"id": p["author_id"], "display_name": "Користувач"}),
                 "subject": {"id": subj.get("id"), "name": subj.get("name"), "slug": subj.get("slug")},
                 "topic": {"id": t["id"], "name": t["name"]} if t else None,
+                "task": ({"id": tasks[p["task_id"]]["id"], "kind": tasks[p["task_id"]]["kind"], "number": tasks[p["task_id"]]["number"],
+                          "title": tasks[p["task_id"]]["title"]} if p.get("task_id") in tasks else None),
                 "material": materials.get(p["id"]),
                 "question": questions.get(p["id"]) if full else None,
                 "attachments": atts.get(p["id"], []),
@@ -82,23 +117,25 @@ class PostService:
 
     @staticmethod
     def _att_out(r: Row) -> Row:
-        fmt = ALLOWED_TYPES.get(r["mime_type"], r["file_name"].rsplit(".", 1)[-1].upper())
-        return {"id": r["id"], "file_name": r["file_name"], "mime_type": r["mime_type"], "size_bytes": r["size_bytes"],
-                "format": fmt, "previewable": fmt in PREVIEWABLE}
+        return file_out(r)
 
     # ---------- Стрічка ----------
     def list(self, university_id: str, *, tab: str = "university", type: str | None = None, subject_id: str | None = None,
              topic_id: str | None = None, status: str | None = None, q: str | None = None, kind: str | None = None,
              course: int | None = None, semester: int | None = None, saved: bool = False, author: str | None = None, author_id: str | None = None,
-             sort: str = "new", offset: int = 0, limit: int = 20) -> Row:
+             sort: str = "new", task_id: str | None = None, offset: int = 0, limit: int = 20) -> Row:
         m = self.a.require_member(university_id)
         f = [("university_id", "eq", university_id)]
-        if type:
+        if type == "legacy":  # старі матеріали й пояснення (до переходу на подання робіт)
+            f.append(("type", "in", ["material", "explanation"]))
+        elif type:
             f.append(("type", "eq", type))
         if subject_id:
             f.append(("subject_id", "eq", subject_id))
         if topic_id:
             f.append(("topic_id", "eq", topic_id))
+        if task_id:
+            f.append(("task_id", "eq", task_id))
         if q and q.strip():
             f.append(("title", "search", (["title", "body"], q.strip()[:100])))
         if status in ("open", "solved"):
@@ -169,6 +206,12 @@ class PostService:
         if data.topic_id and (not topic or topic["subject_id"] != subject["id"]):
             raise HTTPException(400, "Тема не належить предмету")
         self.a.require_same_university(university_id, subject, topic)
+        # Довільні публічні дописи вимкнено: роботи подаються зі сторінки завдання через модерацію
+        if data.type != "question":
+            raise HTTPException(400, "Тут можна лише поставити питання. Свою роботу подайте зі сторінки завдання.")
+        task = self.s.get("tasks", id=data.task_id) if data.task_id else None
+        if data.task_id and (not task or task["subject_id"] != subject["id"]):
+            raise HTTPException(400, "Завдання не належить цьому предмету")
         group_id = None
         if data.visibility == "group":
             group_id = m.get("group_id")
@@ -183,6 +226,7 @@ class PostService:
         self.s.insert("posts", {
             "id": pid, "university_id": university_id, "author_id": self.a.user_id, "type": data.type,
             "subject_id": subject["id"], "topic_id": topic["id"] if topic else None, "title": data.title.strip(),
+            "task_id": task["id"] if task else None,
             "body": data.body, "visibility": data.visibility, "group_id": group_id,
             "status": "open" if data.type == "question" else None, "accepted_comment_id": None, "is_hidden": False,
             "is_demo": False, "useful_count": 0, "comment_count": 0, "created_at": _now(), "updated_at": _now(),
@@ -216,6 +260,8 @@ class PostService:
         if post["author_id"] != self.a.user_id and not self.a.is_staff(post["university_id"]):
             raise HTTPException(403, "Видаляти може автор або модератор")
         for att in self.s.select("attachments", [("post_id", "eq", post_id)]):
+            if path_in_use(self.s, att["storage_path"], skip_table="attachments", skip_id=att["id"]):
+                continue  # файл уже опублікований як приклад до завдання
             try:
                 storage.remove(att["storage_path"])
             except Exception:
@@ -229,17 +275,7 @@ class PostService:
     def add_attachment(self, post_id: str, file_name: str, content_type: str, data: bytes, storage, max_mb: int) -> Row:
         post = self.a.get_post(post_id)
         self.a.require_post_owner(post)
-        name = re.sub(r"[^\w.\- ]", "_", file_name)[:120] or "file"
-        ext = "." + name.rsplit(".", 1)[-1].lower() if "." in name else ""
-        fmt = ALLOWED_TYPES.get(content_type)
-        if not fmt or ext not in EXT:
-            raise HTTPException(415, "Непідтримуваний тип файлу. Дозволено: PDF, DOCX, PPTX, зображення (PNG, JPG, WEBP, GIF), ZIP")
-        if len(data) == 0:
-            raise HTTPException(400, "Файл порожній")
-        if len(data) > max_mb * 1024 * 1024:
-            raise HTTPException(413, f"Файл завеликий. Максимум {max_mb} МБ")
-        if not any(data.startswith(sig) for sig in MAGIC[fmt]):
-            raise HTTPException(415, "Вміст файлу не відповідає його формату")
+        name, _fmt = validate_file(file_name, content_type, data, max_mb)
         if self.s.count("attachments", [("post_id", "eq", post_id)]) >= 10:
             raise HTTPException(400, "Не більше 10 вкладень на допис")
         path = f"{post['university_id']}/{post_id}/{uuid.uuid4().hex}-{name}"
@@ -260,7 +296,8 @@ class PostService:
         att = self.s.get("attachments", id=attachment_id)
         if not att or att["uploader_id"] != self.a.user_id:
             raise HTTPException(404, "Файл не знайдено")
-        storage.remove(att["storage_path"])
+        if not path_in_use(self.s, att["storage_path"], skip_table="attachments", skip_id=att["id"]):
+            storage.remove(att["storage_path"])
         self.s.delete("attachments", {"id": attachment_id})
 
     # ---------- Реакції та закладки ----------

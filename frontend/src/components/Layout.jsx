@@ -1,31 +1,19 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, BookMarked, MessageCircle, BookOpen, ChevronDown, Home, LayoutGrid, LogOut, Menu, MessageCircleQuestion, PanelRight, Plus, Search, Settings, Shield, Sparkles, User, X } from "lucide-react";
+import { Bell, BookMarked, ChevronDown, ClipboardList, Home, LayoutGrid, LogOut, Menu, MessageCircle, PanelRight, Search, Settings, Shield, Sparkles, User, X } from "lucide-react";
 import { api } from "../lib/api.js";
 import { t } from "../lib/i18n.js";
 import { useSession } from "../app/session.jsx";
+import { useMedia } from "../lib/useMedia.js";
 import { Logo } from "./Logo.jsx";
 import { Avatar, DemoBadge } from "./ui.jsx";
 import AgentMascot from "./agent/AgentMascot.jsx";
 import NewsWidget from "../features/news/NewsWidget.jsx";
-import Composer, { useComposer } from "../features/feed/Composer.jsx";
 import { useNotifications } from "../features/profile/pages.jsx";
 import { useUnreadMessages } from "../features/messages/MessagesPage.jsx";
 import { SoonChip } from "../features/ai/ComingSoon.jsx";
 import { FollowButton } from "../features/profile/UserProfile.jsx";
-
-function useMedia(query) {
-  const get = () => typeof window !== "undefined" && window.matchMedia(query).matches;
-  const [match, setMatch] = useState(get);
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const on = () => setMatch(mq.matches);
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, [query]);
-  return match;
-}
 
 function UniversitySwitcher({ compact }) {
   const { me, activeUniversityId, switchUniversity } = useSession();
@@ -89,26 +77,31 @@ function ProfileMenu({ compact }) {
 }
 
 function useNavItems() {
-  const { isStaff, config } = useSession();
+  const { isStaff, config, activeUniversityId } = useSession();
   const notes = useNotifications();
   const dms = useUnreadMessages();
+  // Кількість робіт у черзі модерації — лише для модераторів і адміністраторів
+  const queue = useQuery({
+    queryKey: ["moderation", activeUniversityId, "pending"],
+    queryFn: () => api("/moderation/submissions", { query: { status: "pending" } }),
+    enabled: Boolean(isStaff && activeUniversityId),
+    refetchInterval: 60_000,
+  });
   return [
     { to: "/", label: t("nav.home"), icon: Home, end: true },
     { to: "/subjects", label: t("nav.subjects"), icon: LayoutGrid },
-    { to: "/materials", label: t("nav.materials"), icon: BookOpen },
-    { to: "/questions", label: t("nav.questions"), icon: MessageCircleQuestion },
+    { to: "/submissions", label: "Мої подання", icon: ClipboardList },
     { to: "/ai", label: t("nav.ai"), icon: Sparkles, soon: !config?.ai_enabled },
     { to: "/saved", label: t("nav.saved"), icon: BookMarked },
     { to: "/messages", label: "Повідомлення", icon: MessageCircle, badge: dms.data?.unread },
     { to: "/notifications", label: t("nav.notifications"), icon: Bell, badge: notes.data?.unread },
     { to: "/u/me", label: t("nav.profile"), icon: User },
-    ...(isStaff ? [{ to: "/admin", label: t("nav.admin"), icon: Shield }] : []),
+    ...(isStaff ? [{ to: "/admin", label: t("nav.admin"), icon: Shield, badge: queue.data?.length }] : []),
   ];
 }
 
 function LeftNav({ compact }) {
   const items = useNavItems();
-  const { open } = useComposer();
   return (
     <nav className={`sticky top-0 z-30 h-dvh flex flex-col gap-2 py-3 ${compact ? "items-center px-2" : "px-3"}`} aria-label="Основна навігація">
       <Link to="/" className="px-2 py-1.5 rounded-xl" aria-label="UniPars — на головну"><Logo compact={compact} /></Link>
@@ -130,38 +123,11 @@ function LeftNav({ compact }) {
           </li>
         ))}
       </ul>
-      <button className={`btn-accent h-12 mt-2 text-base ${compact ? "w-12 p-0" : "w-full"}`} onClick={() => open("material")} aria-label={t("nav.create")}>
-        {compact ? <Plus size={22} /> : t("nav.create")}
-      </button>
       <div className="mt-auto flex flex-col gap-1">
         <div className={compact ? "" : "-ml-2"}><AgentMascot compact={compact} /></div>
         <ProfileMenu compact={compact} />
       </div>
     </nav>
-  );
-}
-
-function UnansweredWidget() {
-  const { activeUniversityId } = useSession();
-  const q = useQuery({
-    queryKey: ["posts", activeUniversityId, { widget: "unanswered" }],
-    queryFn: () => api("/posts", { query: { status: "unanswered", limit: 4 } }),
-    enabled: Boolean(activeUniversityId),
-  });
-  if (!q.data?.items?.length) return null;
-  return (
-    <section className="card overflow-hidden" aria-labelledby="unans-h">
-      <h2 id="unans-h" className="font-display text-base px-4 pt-3 pb-1">Чекають на відповідь</h2>
-      <ul>
-        {q.data.items.map((p) => (
-          <li key={p.id}><Link to={`/p/${p.id}`} className="block px-4 py-2 hover:bg-sunken/60">
-            <div className="text-xs text-muted truncate">{p.subject.name}</div>
-            <div className="text-sm font-semibold leading-snug line-clamp-2 break-words">{p.title}</div>
-          </Link></li>
-        ))}
-      </ul>
-      <Link to="/questions?status=unanswered" className="block px-4 py-2.5 text-sm text-primary hover:bg-sunken/60">Усі без відповіді</Link>
-    </section>
   );
 }
 
@@ -189,14 +155,14 @@ function WhoToFollow() {
 function PopularSubjects() {
   const { activeUniversityId } = useSession();
   const q = useQuery({ queryKey: ["subjects", activeUniversityId, ""], queryFn: () => api("/subjects"), enabled: Boolean(activeUniversityId) });
-  const top = [...(q.data || [])].sort((a, b) => b.post_count - a.post_count).slice(0, 5);
+  const top = [...(q.data || [])].sort((a, b) => (b.example_count + b.question_count) - (a.example_count + a.question_count)).slice(0, 5);
   if (!top.length) return null;
   return (
     <section className="card overflow-hidden" aria-labelledby="pop-h">
       <h2 id="pop-h" className="font-display text-base px-4 pt-3 pb-1">Популярні предмети</h2>
       <ul>{top.map((s) => (
         <li key={s.id}><Link to={`/subjects/${s.slug}`} className="flex items-center justify-between px-4 py-2 hover:bg-sunken/60 gap-2">
-          <span className="text-sm font-medium truncate">{s.name}</span><span className="text-xs text-muted shrink-0">{s.post_count}</span>
+          <span className="text-sm font-medium truncate">{s.name}</span><span className="text-xs text-muted shrink-0">{s.example_count} прикл.</span>
         </Link></li>
       ))}</ul>
     </section>
@@ -208,15 +174,14 @@ function RightRail() {
   const [q, setQ] = useState("");
   return (
     <div className="flex flex-col gap-4 py-3">
-      <form role="search" onSubmit={(e) => { e.preventDefault(); nav(`/materials?q=${encodeURIComponent(q.trim())}`); }} className="sticky top-0 z-10 bg-bg pb-1 -mt-1 pt-1">
+      <form role="search" onSubmit={(e) => { e.preventDefault(); nav(`/subjects?view=all&q=${encodeURIComponent(q.trim())}`); }} className="sticky top-0 z-10 bg-bg pb-1 -mt-1 pt-1">
         <label className="relative block">
-          <span className="sr-only">Пошук в університеті</span>
+          <span className="sr-only">Пошук предмета</span>
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-          <input className="input rounded-full pl-10 h-11 bg-sunken border-transparent" placeholder="Пошук в університеті" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input rounded-full pl-10 h-11 bg-sunken border-transparent" placeholder="Пошук предмета" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
       </form>
       <NewsWidget />
-      <UnansweredWidget />
       <WhoToFollow />
       <PopularSubjects />
       <footer className="text-xs text-muted px-2">UniPars · платформа взаємодопомоги студентів</footer>
@@ -225,11 +190,10 @@ function RightRail() {
 }
 
 function MobileBar() {
-  const { open } = useComposer();
   const items = [
     { to: "/", icon: Home, label: t("nav.home"), end: true },
     { to: "/subjects", icon: LayoutGrid, label: t("nav.subjects") },
-    { action: () => open("material"), icon: Plus, label: "Створити" },
+    { to: "/submissions", icon: ClipboardList, label: "Подання" },
     { to: "/ai", icon: Sparkles, label: t("nav.ai") },
     { to: "/u/me", icon: User, label: t("nav.profile") },
   ];
@@ -264,7 +228,7 @@ function MobileMenu({ onClose }) {
           </NavLink></li>
         ))}
       </ul>
-      <div className="p-3"><NewsWidget limit={4} /></div>
+      <div className="p-3"><NewsWidget limit={4} headingId="news-menu-h" /></div>
     </div>
   );
 }
@@ -310,7 +274,6 @@ export default function Layout() {
       {menu && <MobileMenu onClose={() => setMenu(false)} />}
       <MobileBar />
       {!isMd && <div className="fixed left-2 bottom-[68px] z-20"><AgentMascot compact /></div>}
-      <Composer />
     </div>
   );
 }

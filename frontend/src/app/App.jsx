@@ -8,7 +8,9 @@ import IntroLoader from "../components/IntroLoader.jsx";
 import Layout from "../components/Layout.jsx";
 import LoginPage from "../features/auth/LoginPage.jsx";
 import Onboarding from "../features/auth/Onboarding.jsx";
-import { HomePage, MaterialsPage, QuestionsPage, SavedPage } from "../features/feed/pages.jsx";
+import { HomePage, SavedPage } from "../features/feed/pages.jsx";
+import TaskPage from "../features/tasks/TaskPage.jsx";
+import { MySubmissionsPage } from "../features/tasks/SubmissionsPages.jsx";
 import { SubjectPage, SubjectsPage } from "../features/subjects/pages.jsx";
 import PostPage from "../features/posts/PostPage.jsx";
 import { NotificationsPage, SettingsPage } from "../features/profile/pages.jsx";
@@ -77,8 +79,11 @@ const router = createBrowserRouter([
           { path: "/", element: <HomePage /> },
           { path: "/subjects", element: <SubjectsPage /> },
           { path: "/subjects/:slug", element: <SubjectPage /> },
-          { path: "/materials", element: <MaterialsPage /> },
-          { path: "/questions", element: <QuestionsPage /> },
+          { path: "/tasks/:id", element: <TaskPage /> },
+          { path: "/submissions", element: <MySubmissionsPage /> },
+          // Старі розділи об'єднано з «Предметами»
+          { path: "/materials", element: <Navigate to="/subjects" replace /> },
+          { path: "/questions", element: <Navigate to="/subjects" replace /> },
           { path: "/p/:id", element: <PostPage /> },
           { path: "/ai", element: <AIPage /> },
           { path: "/saved", element: <SavedPage /> },

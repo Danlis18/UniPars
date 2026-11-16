@@ -209,8 +209,15 @@ export default function PostPage() {
 
   return (
     <>
-      <PageHeader back title={p.type === "question" ? "Запитання" : p.type === "explanation" ? "Пояснення" : "Матеріал"} />
+      <PageHeader back title={p.type === "question" ? "Питання" : p.type === "explanation" ? "Пояснення" : "Матеріал"} subtitle={p.subject?.name} />
       <article className="px-4 py-4 border-b border-line">
+        {p.subject?.slug && (
+          <nav className="text-xs text-muted flex flex-wrap gap-x-1.5 mb-3" aria-label="Шлях">
+            <Link to={`/subjects/${p.subject.slug}`} className="hover:underline break-words">{p.subject.name}</Link><span aria-hidden>›</span>
+            <Link to={`/subjects/${p.subject.slug}?tab=questions`} className="hover:underline">Питання</Link>
+            {p.task && <><span aria-hidden>›</span><Link to={`/tasks/${p.task.id}`} className="hover:underline break-words">№{p.task.number} · {p.task.title}</Link></>}
+          </nav>
+        )}
         <div className="flex gap-3">
           <Link to={`/u/${p.author.id}`} className="shrink-0 h-fit"><Avatar user={p.author} ring size={46} /></Link>
           <div className="flex-1 min-w-0"><PostHeader post={p} onEdit={() => setEditing(true)} /></div>

@@ -168,10 +168,10 @@ function AgentCanvas({ size, onActivate, hint }) {
 }
 
 const TIPS = [
-  { icon: Search, title: "Знайти матеріал", text: "Матеріали → фільтри за предметом, типом, курсом.", to: "/materials" },
-  { icon: HelpCircle, title: "Поставити запитання", text: "Опиши умову, що вже пробував і який крок незрозумілий.", to: "/questions?compose=question" },
-  { icon: Upload, title: "Поділитися матеріалом", text: "PDF, DOCX, PPTX, зображення або ZIP до 25 МБ.", to: "/?compose=material" },
-  { icon: BookOpen, title: "Підписатися на предмети", text: "Стрічка «Для мене» підлаштується під них.", to: "/subjects" },
+  { icon: Search, title: "Знайти приклад", text: "Предмети → розділ (лабораторні, практичні…) → потрібне завдання.", to: "/subjects" },
+  { icon: Upload, title: "Подати свою роботу", text: "На сторінці завдання — «Подати свій варіант». Після перевірки її побачать інші.", to: "/submissions" },
+  { icon: HelpCircle, title: "Поставити питання", text: "Предмет → вкладка «Питання». Можна прив'язати до конкретної роботи.", to: "/subjects" },
+  { icon: BookOpen, title: "Підписатися на предмети", text: "Дедлайни ваших предметів з'являться на головній.", to: "/subjects" },
 ];
 
 // Панель допомоги: рендериться в <body> через портал (поверх усього інтерфейсу),
