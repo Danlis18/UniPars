@@ -3,6 +3,46 @@
 -- Наявні дані не змінюються: дописи, вкладення й коментарі залишаються як є.
 -- Матеріали без прив'язки адміністратор розподіляє до завдань (submissions.source_attachment_id).
 
+-- Допоміжні функції прав (ті самі, що в міграції 2; create or replace — безпечно, якщо вони вже є)
+create or replace function public.is_platform_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select is_platform_admin from profiles where id = auth.uid()), false)
+$$;
+
+create or replace function public.is_member(uni uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from university_memberships where user_id = auth.uid() and university_id = uni)
+$$;
+
+create or replace function public.has_role(uni uuid, roles membership_role[]) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.is_platform_admin() or exists (
+    select 1 from university_memberships
+    where user_id = auth.uid() and university_id = uni and role = any (roles)
+  )
+$$;
+
+create or replace function public.can_view_post(p posts) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.is_platform_admin()
+    or p.author_id = auth.uid()
+    or (
+      public.is_member(p.university_id)
+      and (not p.is_hidden or public.has_role(p.university_id, array['moderator','admin']::membership_role[]))
+      and (
+        p.visibility = 'university'
+        or exists (select 1 from university_memberships m
+                   where m.user_id = auth.uid() and m.university_id = p.university_id and m.group_id = p.group_id)
+      )
+    )
+$$;
+
+create or replace function public.can_view_post_id(pid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select public.can_view_post(p) from posts p where p.id = pid), false)
+$$;
+
+
 do $$ begin
   create type task_kind as enum ('lab', 'practical', 'module', 'exam');
 exception when duplicate_object then null; end $$;
