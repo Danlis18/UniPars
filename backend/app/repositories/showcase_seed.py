@@ -38,6 +38,11 @@ PEOPLE = [  # (ключ, ім'я, група, роль)
 ]
 U = {k: sid(f"user:{k}") for k, *_ in PEOPLE}
 
+# Тестові адреси (домен .test не існує) і тестовий пароль — лише для локального демосередовища відео
+DEMO_PASSWORD = "UniPars-demo-2026"
+DEMO_ACCOUNTS = {f"{k}@unipars.test": U[k] for k, *_ in PEOPLE}
+NEW_USER = "danylo"  # новий акаунт: у відео проходить налаштування (факультет, F2, курс, група, предмети)
+
 # Для сторінки демовходу (/api/demo/users)
 DEMO_USERS = [{"id": U[k], "display_name": name, "role": role, "uni": UNI,
                "note": group or "Модерація факультету"} for k, name, group, role in PEOPLE]
@@ -108,8 +113,12 @@ def seed(store) -> None:  # noqa: C901 — лінійний сценарій
 
     year = datetime.now(timezone.utc).year if datetime.now(timezone.utc).month >= 9 else datetime.now(timezone.utc).year - 1
     for k, name, group, role in PEOPLE:
+        new = k == NEW_USER
         store.insert("profiles", {"id": U[k], "display_name": name, "avatar_url": None, "bio": "", "locale": "uk", "theme": "dark",
-                                  "active_university_id": UNI, "is_platform_admin": False, "is_bot": False, "created_at": ago(24 * 70)})
+                                  "active_university_id": None if new else UNI, "is_platform_admin": False, "is_bot": False,
+                                  "created_at": ago(0.1 if new else 24 * 70)})
+        if new:
+            continue
         store.insert("university_memberships", {"user_id": U[k], "university_id": UNI, "role": role, "faculty_id": fac,
                                                 "program_id": prog, "group_id": GROUPS.get(group), "course": 1,
                                                 "entry_year": year, "onboarded": True})
@@ -121,6 +130,8 @@ def seed(store) -> None:  # noqa: C901 — лінійний сценарій
         store.insert("subject_programs", {"subject_id": subj[slug], "program_id": prog, "university_id": UNI, "course": 1,
                                           "semester": 1, "semesters": [1, 2], "courses": [1], "is_elective": False})
     for k, *_ in PEOPLE:
+        if k == NEW_USER:
+            continue  # предмети Данило обирає сам під час налаштування
         for slug in subj:
             store.insert("subject_subscriptions", {"user_id": U[k], "subject_id": subj[slug]})
     for a, b in (("danylo", "sofiia"), ("sofiia", "danylo"), ("matvii", "danys"), ("olena", "sofiia"), ("artem", "danylo")):

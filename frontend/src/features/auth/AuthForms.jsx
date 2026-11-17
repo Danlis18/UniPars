@@ -202,7 +202,7 @@ function Divider() {
   );
 }
 
-function SignInForm({ email, setEmail, onNeedVerify, go }) {
+function SignInForm({ email, setEmail, onNeedVerify, go, signIn }) {
   const [password, setPassword] = useState("");
   const [touched, setTouched] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -214,7 +214,7 @@ function SignInForm({ email, setEmail, onNeedVerify, go }) {
     setBusy(true);
     setMsg(null);
     const addr = normalizeEmail(email);
-    const { error } = await supabase.auth.signInWithPassword({ email: addr, password });
+    const { error } = signIn ? await signIn(addr, password) : await supabase.auth.signInWithPassword({ email: addr, password });
     if (error && (error.code === "email_not_confirmed" || /not confirmed/i.test(error.message))) {
       // пошту не підтвердили — одразу надсилаємо новий код і показуємо поле для нього
       await supabase.auth.resend({ type: "signup", email: addr });
@@ -228,7 +228,7 @@ function SignInForm({ email, setEmail, onNeedVerify, go }) {
     <>
       <h1 className="font-display text-2xl mb-1">З поверненням</h1>
       <p className="text-sm text-muted mb-5">Увійдіть, щоб продовжити</p>
-      <SocialLogin onError={(text) => setMsg({ error: true, text })} />
+      {!signIn && <SocialLogin onError={(text) => setMsg({ error: true, text })} />}
       <form onSubmit={submit} className="space-y-3" noValidate>
         <EmailField value={email} onChange={setEmail} touched={touched} onBlur={() => email && setTouched(true)} />
         <Field id="l-pass" label="Пароль" error={touched && !password ? "Вкажіть пароль" : null}>
@@ -408,6 +408,12 @@ function VerifyForm({ email, purpose, notice, go }) {
       )}
     </>
   );
+}
+
+// Тестове середовище (демо-режим, DEMO_SEED=showcase): та сама форма входу, перевірка — тестовими акаунтами backend
+export function TestEnvSignIn({ signIn }) {
+  const [email, setEmail] = useState("");
+  return <SignInForm email={email} setEmail={setEmail} onNeedVerify={() => {}} go={() => {}} signIn={signIn} />;
 }
 
 export default function SupabaseAuth() {

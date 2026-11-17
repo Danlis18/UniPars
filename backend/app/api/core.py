@@ -1,6 +1,7 @@
 """Конфігурація, профіль, університети, предмети, сповіщення, новини."""
 from __future__ import annotations
 
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
@@ -20,8 +21,33 @@ router = APIRouter()
 @router.get("/config")
 def config():
     s = get_settings()
-    return {"mode": s.app_mode, "ai_enabled": s.ai_enabled, "ai_model": s.ai_model if s.ai_enabled else None,
-            "max_upload_mb": s.max_upload_mb}
+    import os
+
+    out = {"mode": s.app_mode, "ai_enabled": s.ai_enabled, "ai_model": s.ai_model if s.ai_enabled else None,
+           "max_upload_mb": s.max_upload_mb}
+    if s.is_demo and os.environ.get("DEMO_SEED") == "showcase":
+        out["demo_auth"] = "password"  # тестове середовище для відео: звичайна форма входу замість вибору профілю
+    return out
+
+
+class DemoLogin(BaseModel):
+    email: str
+    password: str
+
+
+@router.post("/demo/login")
+def demo_login(data: DemoLogin):
+    """Лише демо-режим із DEMO_SEED=showcase: вхід тестовими адресами й паролем (не для продакшну)."""
+    import os
+
+    if not get_settings().is_demo or os.environ.get("DEMO_SEED") != "showcase":
+        raise HTTPException(404, "Недоступно")
+    from app.repositories.showcase_seed import DEMO_ACCOUNTS, DEMO_PASSWORD
+
+    uid = DEMO_ACCOUNTS.get(data.email.strip().lower())
+    if not uid or data.password != DEMO_PASSWORD:
+        raise HTTPException(401, "Неправильний email або пароль")
+    return {"user_id": uid}
 
 
 @router.get("/covers")

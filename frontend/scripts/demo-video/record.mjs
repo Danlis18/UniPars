@@ -131,7 +131,7 @@ async function session(name, { mobile = false } = {}) {
 const main = (p) => p.locator("#main");
 const nav = (p) => p.getByRole("navigation", { name: "Основна навігація" });
 
-// ---------- Данило: вхід, головна, новини, предмет, лабораторна ----------
+// ---------- Данило: вхід паролем, налаштування акаунта ----------
 const D = await session("danylo");
 const S = await session("sofiia");
 const A = await session("admin");
@@ -141,222 +141,221 @@ await D.page.goto(BASE + "/");
 D.mark("intro");
 await D.ready();
 D.mark("login");
+await sleep(500);
+await D.type(D.page.getByLabel("Email"), "danylo@unipars.test", 30);
+await D.type(D.page.locator("#l-pass"), "UniPars-demo-2026", 30); // поле пароля — лише крапки
+await D.click(D.page.getByRole("button", { name: "Увійти" }));
+await D.page.getByRole("heading", { name: "Оберіть університет" }).waitFor();
+D.mark("onboarding");
+await sleep(500);
+await D.click(D.page.getByRole("radio").first());
+await D.click(D.page.getByRole("button", { name: "Далі" }));
+await D.page.locator("#o-fac").waitFor();
+D.mark("context");
+for (const [id, opt] of [["#o-fac", { index: 1 }], ["#o-prog", { index: 1 }], ["#o-course", { value: "1" }], ["#o-group", { label: "ФЕП-11" }]]) {
+  await D.click(D.page.locator(id));
+  await D.page.locator(id).selectOption(opt);
+  await sleep(350);
+}
+await D.click(D.page.getByRole("button", { name: "Далі" }));
+await D.page.getByRole("heading", { name: "Підпишіться на предмети" }).waitFor();
+D.mark("subjects-pick");
 await sleep(900);
-await D.click(D.page.getByRole("button", { name: /^Данило/ }));
-await D.page.getByRole("heading", { name: /Найближчі дедлайни/ }).waitFor();
+await D.click(D.page.getByRole("button", { name: "Зняти всі" }));
+await D.click(D.page.getByRole("button", { name: "Обрати всі" }));
 await sleep(700);
+await D.click(D.page.getByRole("button", { name: "Перейти до стрічки" }));
+await D.page.getByRole("heading", { name: /Найближчі дедлайни/ }).waitFor();
+await sleep(600);
 D.mark("home");
-await D.page.mouse.move(600, 260, { steps: 20 });
-await sleep(900);
-await D.zoom(D.page.locator("section[aria-labelledby=dl-h]"), 1.45);
+
+// ---------- Головна ----------
+await D.page.mouse.move(600, 260, { steps: 16 });
+await D.zoom(D.page.locator("section[aria-labelledby=dl-h]"), 1.4, 900);
 D.mark("deadlines-zoomed");
-await sleep(2600);
-await D.unzoom();
-await D.move(D.page.getByRole("heading", { name: /Популярні матеріали|Нещодавно опубліковані/ }));
-await D.scrollTo(520, 1400);
-D.mark("materials");
 await sleep(2200);
-await D.scrollTo(0, 900);
+await D.unzoom(700);
 const rail = D.page.getByRole("complementary", { name: "Допоміжна панель" });
-await D.move(rail.getByRole("heading", { name: "Новини" }));
-D.mark("news");
-await sleep(900);
 await D.click(rail.getByRole("button", { name: /Зимова школа DevOps/ }));
 D.mark("news-open");
-await sleep(600);
-await D.zoom(D.page.getByRole("dialog").locator("h3"), 1.35, 900);
-await sleep(2400);
-await D.unzoom(500);
+await D.zoom(D.page.getByRole("dialog").locator("h3"), 1.3, 700);
+await sleep(1800);
+await D.unzoom(400);
 await D.click(D.page.getByRole("dialog").getByRole("button", { name: "Закрити" }));
 D.mark("news-closed");
 
+// ---------- Предмет і лабораторна ----------
 await D.click(nav(D.page).getByRole("link", { name: /^Предмети/ }));
-D.mark("subjects");
-await sleep(1300);
+await sleep(700);
 await D.click(main(D.page).getByRole("link", { name: /Комп'ютерні інформаційні мережі/ }));
 await D.page.getByRole("tab", { name: /Лабораторні/ }).waitFor();
 D.mark("subject");
-await sleep(500);
-for (const t of [/Практичні/, /Модулі/, /Екзамени/, /Питання/]) await D.move(D.page.getByRole("tab", { name: t }), { steps: 14 });
-await D.move(D.page.getByRole("tab", { name: /Лабораторні/ }), { steps: 18 });
-await D.scrollTo(560, 1200);
-await sleep(500);
+for (const t of [/Практичні/, /Модулі/, /Екзамени/, /Питання/]) await D.move(D.page.getByRole("tab", { name: t }), { steps: 10 });
+await D.scrollTo(560, 900);
 await D.click(main(D.page).getByRole("link", { name: /Маршрутизація: ping і traceroute/ }));
 await D.page.getByRole("heading", { name: "Умова завдання" }).waitFor();
 D.mark("task");
-await sleep(900);
-await D.move(D.page.getByRole("heading", { name: "Умова завдання" }));
-await sleep(1600);
-await D.scrollTo(380, 1400);
-D.mark("condition");
-await sleep(1800);
+await sleep(600);
+await D.scrollTo(380, 1000);
+await sleep(1200);
 const examples = D.page.locator("section", { has: D.page.getByRole("heading", { name: /Приклади виконання/ }) });
 await examples.scrollIntoViewIfNeeded();
-await D.scrollTo(await D.page.evaluate(() => scrollY) + 120, 700);
-D.mark("examples");
-await sleep(1000);
 await D.click(examples.getByRole("button", { name: /^Переглянути ЛР9/ }));
 D.mark("preview");
-await sleep(3800);
+await sleep(2800);
 await D.click(D.page.getByRole("dialog").getByRole("button", { name: "Закрити" }));
 D.mark("preview-closed");
-await sleep(600);
 
 // ---------- Форум: Данило питає, Софія відповідає ----------
-await D.scrollTo(0, 700);
+await D.scrollTo(0, 500);
 await D.click(D.page.getByRole("link", { name: "Комп'ютерні інформаційні мережі та системи" }).first());
 await D.page.getByRole("tab", { name: /Питання/ }).waitFor();
 await D.click(D.page.getByRole("tab", { name: /Питання/ }));
 D.mark("forum");
-await sleep(1200);
 await D.click(D.page.getByRole("button", { name: "Поставити питання" }));
 const ask = D.page.getByRole("dialog", { name: "Нове питання" });
 await ask.waitFor();
 D.mark("ask");
-await D.type(ask.getByLabel("Питання"), "Лабораторна №9 — як читати traceroute?");
-await D.type(ask.getByLabel(/Подробиці/), "У мене в traceroute на другому переході три зірочки, але далі маршрут іде. Як це пояснити у звіті?", 22);
+await D.type(ask.getByLabel("Питання"), "Лабораторна №9 — як читати traceroute?", 22);
+await D.type(ask.getByLabel(/Подробиці/), "У мене в traceroute на другому переході три зірочки, але далі маршрут іде. Як це пояснити у звіті?", 14);
 await D.click(ask.getByLabel("Стосується завдання"));
 await ask.getByLabel("Стосується завдання").selectOption({ label: "№9 · Маршрутизація: ping і traceroute" });
-await sleep(700);
+await sleep(400);
 await D.click(ask.getByRole("button", { name: "Опублікувати" }));
 await D.page.getByRole("heading", { name: "Лабораторна №9 — як читати traceroute?" }).waitFor();
 D.mark("asked");
-await sleep(2200);
-const threadPath = new URL(D.page.url()).pathname;
+await sleep(1500);
 
-// Софія в іншому браузері
 await S.page.goto(BASE + "/subjects/net?tab=questions");
 await S.ready();
 S.mark("forum");
-await sleep(900);
 await S.click(main(S.page).getByRole("link", { name: /Лабораторна №9 — як читати traceroute/ }));
 await S.page.getByRole("heading", { name: "Лабораторна №9 — як читати traceroute?" }).waitFor();
 S.mark("thread");
-await sleep(1500);
-const box = S.page.getByPlaceholder(/Поясни хід розв'язання|Напишіть коментар/);
-await S.type(box, "Цей вузол не відповів на пробні пакети. Якщо наступні переходи видно, маршрут на ньому не обірвався.", 24);
+await sleep(800);
+await S.type(S.page.getByPlaceholder(/Поясни хід розв'язання|Напишіть коментар/), "Цей вузол не відповів на пробні пакети. Якщо наступні переходи видно, маршрут на ньому не обірвався.", 14);
 await S.click(S.page.getByRole("button", { name: "Коментувати" }));
 await S.page.locator("[id^='c-']", { hasText: "Цей вузол не відповів" }).waitFor();
 S.mark("answered");
-await sleep(2200);
+await sleep(1500);
 
-// Данило оновлює сторінку й бачить відповідь
 D.mark("reload");
 await D.page.reload();
 await D.ready();
 D.mark("reloaded");
-await sleep(500);
-const answer = D.page.locator("[id^='c-']", { hasText: "Цей вузол не відповів" }).first();
-await D.move(answer);
-await sleep(800);
-await D.type(D.page.getByPlaceholder(/Поясни хід розв'язання|Напишіть коментар/), "Зрозумів, тоді вкажу це під скріном маршруту. Дякую!", 28);
+await D.move(D.page.locator("[id^='c-']", { hasText: "Цей вузол не відповів" }).first());
+await D.type(D.page.getByPlaceholder(/Поясни хід розв'язання|Напишіть коментар/), "Зрозумів, тоді вкажу це під скріном маршруту. Дякую!", 16);
 await D.click(D.page.getByRole("button", { name: "Коментувати" }));
 await D.page.locator("[id^='c-']", { hasText: "Зрозумів, тоді вкажу" }).waitFor();
-await sleep(600);
-await D.page.mouse.move(1250, 760, { steps: 20 });
-await D.scrollTo(0, 600);
-await D.zoom(D.page.locator("#main"), 1.12, 1100);
+await D.page.mouse.move(1250, 760, { steps: 16 });
+await D.scrollTo(0, 400);
+await D.zoom(D.page.locator("#main"), 1.12, 900);
 D.mark("dialog-final");
-await sleep(4200);
-await D.unzoom(700);
+await sleep(3200);
+await D.unzoom(600);
 
-// ---------- Подання роботи → модерація → публікація ----------
+// ---------- Подання роботи → модерація ----------
 await D.click(D.page.getByRole("navigation", { name: "Шлях" }).getByRole("link", { name: /№9/ }));
 await D.page.getByRole("heading", { name: "Умова завдання" }).waitFor();
 D.mark("task2");
-await sleep(800);
 await D.click(D.page.getByRole("button", { name: "Подати свій варіант" }).last());
 const dlg = D.page.getByRole("dialog", { name: "Подати свій варіант" });
 await dlg.waitFor();
 D.mark("submit-dialog");
-await sleep(900);
 await D.move(dlg.locator("label[for=file-input]"));
-await dlg.locator("input[type=file]").setInputFiles({ name: "ЛР9_Данило_ФЕП-12.pdf", mimeType: "application/pdf",
+await dlg.locator("input[type=file]").setInputFiles({ name: "ЛР9_Данило_ФЕП-11.pdf", mimeType: "application/pdf",
   buffer: (await import("fs")).readFileSync(join(ASSETS, "danylo-lr9.pdf")) });
-log("file chosen");
-await sleep(900);
-await D.type(dlg.getByLabel(/Коментар для модератора/), "Варіант 4, скріни маршруту в розділі 2", 30);
+await sleep(600);
+await D.type(dlg.getByLabel(/Коментар для модератора/), "Варіант 4", 30);
 await D.move(dlg.getByText("Опублікувати анонімно"));
 D.mark("anon-option");
-await sleep(1400);
+await sleep(900);
 await D.click(dlg.getByRole("button", { name: "Надіслати на розгляд" }));
 await D.page.getByText("Роботу надіслано на розгляд").waitFor();
-await sleep(500);
-const mine = D.page.getByText("Ваші подання до цього завдання").locator("..");
-await D.zoom(mine, 1.6);
+await sleep(300);
+await D.zoom(D.page.getByText("Ваші подання до цього завдання").locator(".."), 1.6, 800);
 D.mark("pending");
-await sleep(2600);
-await D.unzoom();
+await sleep(2000);
+await D.unzoom(600);
 
 A.mark("queue-start");
 await A.page.reload();
 await A.ready();
 A.mark("queue");
-const card = main(A.page).locator("li", { hasText: "ЛР9_Данило_ФЕП-12.pdf" });
+const card = main(A.page).locator("li", { hasText: "ЛР9_Данило_ФЕП-11.pdf" });
 await A.move(card);
-await sleep(1200);
 await A.click(card.getByRole("button", { name: /^Переглянути ЛР9_Данило/ }));
 A.mark("review-preview");
-await sleep(3200);
+await sleep(2400);
 await A.click(A.page.getByRole("dialog").getByRole("button", { name: "Закрити" }));
-await sleep(500);
 await A.click(card.getByRole("button", { name: "Схвалити й опублікувати" }));
 await A.page.getByText("Роботу опубліковано біля завдання").waitFor();
 A.mark("approved");
-await sleep(2000);
+await sleep(1500);
 
+// ---------- Опубліковано + сповіщення ----------
 D.mark("back-start");
 await D.page.reload();
 await D.ready();
 D.mark("published");
 const ex = D.page.locator("section", { has: D.page.getByRole("heading", { name: /Приклади виконання/ }) });
 await ex.scrollIntoViewIfNeeded();
-await D.scrollTo(await D.page.evaluate(() => scrollY) + 150, 700);
+await D.zoom(ex.locator("li", { hasText: "ЛР9_Данило_ФЕП-11.pdf" }), 1.5, 800);
+await sleep(1800);
+await D.unzoom(500);
+await D.move(nav(D.page).getByRole("link", { name: /^Сповіщення/ }));
+D.mark("bell");
+await sleep(700);
+await D.click(nav(D.page).getByRole("link", { name: /^Сповіщення/ }));
+await D.page.getByRole("heading", { name: "Сповіщення" }).waitFor();
+D.mark("notifications");
+await D.zoom(main(D.page).locator("ul").first(), 1.3, 800);
+await sleep(2400);
+await D.unzoom(500);
+
+// ---------- Особисті повідомлення ----------
+await D.page.goto(BASE + `/u/${user("Софія").id}`);
+await D.ready();
+D.mark("profile");
 await sleep(500);
-await D.zoom(ex.locator("li", { hasText: "ЛР9_Данило_ФЕП-12.pdf" }), 1.55);
-await sleep(2600);
-await D.unzoom();
+await D.click(main(D.page).getByRole("button", { name: "Написати" }));
+await D.page.locator("#dm-input").waitFor();
+D.mark("dm");
+await D.type(D.page.locator("#dm-input"), "Дякую за пояснення! Скинеш, як оформила таблицю переходів?", 16);
+await D.click(D.page.getByRole("button", { name: "Надіслати" }));
+D.mark("dm-sent");
+await sleep(1200);
+
+await S.page.goto(BASE + "/messages");
+await S.ready();
+S.mark("inbox");
+await sleep(600);
+await S.click(main(S.page).getByRole("link", { name: /Данило/ }));
+await S.page.locator("#dm-input").waitFor();
+S.mark("dm-open");
+await sleep(500);
+await S.type(S.page.locator("#dm-input"), "Звісно! Таблиця є в моєму звіті до ЛР9, розділ 2 🙂", 16);
+await S.click(S.page.getByRole("button", { name: "Надіслати" }));
+S.mark("dm-replied");
+await sleep(1000);
+
+D.mark("dm-wait");
+await D.page.locator("[aria-live=polite]").getByText("Таблиця є в моєму звіті").waitFor({ timeout: 15000 });
+D.mark("dm-received");
+await sleep(2200);
 
 // ---------- «Купити звіт» ----------
+await D.page.goto(BASE + `/tasks/${(await (await D.page.request.get(`${API}/subjects/net/tasks?kind=lab`, { headers: { Authorization: `Bearer demo:${user("Данило").id}`, "X-University-Id": user("Данило").university_id } })).json()).items[8].id}`);
+await D.ready();
 const buy = D.page.getByRole("button", { name: /Купити звіт/ });
 await buy.scrollIntoViewIfNeeded();
-await D.scrollTo(await D.page.evaluate(() => scrollY) + 200, 600);
 D.mark("buy");
-await sleep(700);
 await D.click(buy);
 const buyDlg = D.page.getByRole("dialog", { name: "Купити звіт" });
 await buyDlg.waitFor();
-await sleep(500);
-await D.zoom(buyDlg.locator("p"), 1.35, 900);
+await D.zoom(buyDlg.locator("p"), 1.35, 700);
 D.mark("buy-open");
-await sleep(3600);
-await D.unzoom(500);
-await D.click(buyDlg.getByRole("button", { name: "Зрозуміло" }));
-await sleep(500);
-
-// ---------- «З чого почати»: Предмети → Завдання → Матеріали ----------
-await D.click(nav(D.page).getByRole("link", { name: /^Предмети/ }));
-D.mark("start-route");
-await sleep(1200);
-await D.click(main(D.page).getByRole("link", { name: /Архітектура комп'ютерів/ }));
-await D.page.getByRole("tab", { name: /Лабораторні/ }).waitFor();
-await sleep(900);
-await D.scrollTo(700, 1200);
-await D.click(main(D.page).getByRole("link", { name: /Семисегментні індикатори/ }));
-await D.page.getByRole("heading", { name: "Умова завдання" }).waitFor();
-await sleep(900);
-const ex2 = D.page.locator("section", { has: D.page.getByRole("heading", { name: /Приклади виконання/ }) });
-await ex2.scrollIntoViewIfNeeded();
-await D.scrollTo(await D.page.evaluate(() => scrollY) + 120, 800);
-D.mark("start-route-end");
-await sleep(1800);
-// друга тема форуму — підготовлена заздалегідь
-await D.page.goto(BASE + "/subjects/arch?tab=questions");
-await D.ready();
-await D.click(main(D.page).getByRole("link", { name: /Лабораторна №7 — що показують U2 та U3/ }));
-await D.page.getByRole("heading", { name: /що показують U2 та U3/ }).waitFor();
-D.mark("arch-thread");
-await sleep(3800);
+await sleep(2800);
 D.mark("end");
 await Promise.all([D.close(), S.close(), A.close()]);
 

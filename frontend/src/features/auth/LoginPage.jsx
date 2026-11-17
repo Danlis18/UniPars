@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api.js";
 import { supabase } from "../../lib/supabase.js";
 import { useSession } from "../../app/session.jsx";
-import SupabaseAuth from "./AuthForms.jsx";
+import SupabaseAuth, { TestEnvSignIn } from "./AuthForms.jsx";
 import { Logo } from "../../components/Logo.jsx";
 import { DemoBadge, ErrorState, Loading } from "../../components/ui.jsx";
 
@@ -31,8 +31,22 @@ function DemoLogin() {
   );
 }
 
+function TestEnvLogin() {
+  const { loginDemo } = useSession();
+  const signIn = async (email, password) => {
+    try {
+      const { user_id } = await api("/demo/login", { method: "POST", body: { email, password } });
+      loginDemo(user_id);
+      return { error: null };
+    } catch (e) {
+      return { error: { message: e.message } };
+    }
+  };
+  return <TestEnvSignIn signIn={signIn} />;
+}
+
 export default function LoginPage() {
-  const { isDemo } = useSession();
+  const { isDemo, config } = useSession();
   return (
     <div className="min-h-dvh grid lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between p-12 bg-[#0f2a20] text-white relative overflow-hidden">
@@ -52,7 +66,7 @@ export default function LoginPage() {
       <div className="grid place-items-center p-4">
         <div className="w-full max-w-sm">
           <div className="lg:hidden mb-8"><Logo /></div>
-          {isDemo ? <DemoLogin /> : supabase ? <SupabaseAuth /> : (
+          {isDemo ? (config?.demo_auth === "password" ? <TestEnvLogin /> : <DemoLogin />) : supabase ? <SupabaseAuth /> : (
             <div className="text-sm text-danger">Вкажіть VITE_SUPABASE_URL і VITE_SUPABASE_ANON_KEY у frontend/.env</div>
           )}
         </div>
