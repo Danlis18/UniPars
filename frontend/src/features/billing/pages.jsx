@@ -36,8 +36,6 @@ async function startRegeneration(submissionId, options) {
 }
 
 // ---------- «Регенерувати звіт» ----------
-const PARTS = [["headings", "Підзаголовки"], ["theory", "Теорія"], ["procedure", "Хід роботи"], ["conclusions", "Висновки"]];
-const STYLES = [["bold", "Жирний", "font-bold"], ["italic", "Курсив", "italic"], ["underline", "Підкреслення", "underline"]];
 
 export function RegenerateDialog({ example, task, open, onClose }) {
   const nav = useNavigate();
@@ -45,12 +43,10 @@ export function RegenerateDialog({ example, task, open, onClose }) {
   const toast = useToast();
   const checkout = useCheckout();
   const billing = useBilling();
-  const [rewrite, setRewrite] = useState({ headings: false, theory: true, procedure: true, conclusions: true });
-  const [emphasis, setEmphasis] = useState({ bold: true, italic: false, underline: false });
   const [busy, setBusy] = useState(false);
-  const any = Object.values(rewrite).some(Boolean);
+  const any = true;
   const b = billing.data;
-  const options = { rewrite, emphasis };
+  const options = {};
 
   const run = async () => {
     setBusy(true);
@@ -72,35 +68,15 @@ export function RegenerateDialog({ example, task, open, onClose }) {
     <Modal open={open} onClose={onClose} title="Регенерувати звіт" labelledBy="regen-h" wide>
       <div className="p-4 sm:p-5 space-y-5">
         <div className="rounded-2xl bg-primary/10 p-4 text-sm leading-relaxed">
-          <div className="flex items-center gap-2 font-semibold mb-1"><Wand2 size={16} className="text-primary" aria-hidden /> Що буде зроблено</div>
-          ШІ створить <b>приклад іншого оформлення</b> цього затвердженого звіту: обрані частини буде переписано іншими словами,
-          а порядок розділів, теорії, підзаголовків і ходу роботи залишиться без змін. Скріни, схеми, код і результати — з оригіналу.
-          Шрифт — Times New Roman 14. Результат доступний <b>лише вам і лише для перегляду</b> на сайті, з позначкою «Приклад оформлення».
+          <div className="flex items-center gap-2 font-semibold mb-2"><Wand2 size={16} className="text-primary" aria-hidden /> Що буде зроблено</div>
+          <ul className="space-y-1.5">
+            <li>✓ <b>Нова стилізація</b> — щоразу інша: виділення ключових термінів жирним, курсивом чи підкресленням і стиль підзаголовків.</li>
+            <li>✓ <b>Висновки</b> — ті самі думки іншими словами.</li>
+            <li>✓ <b>Без змін:</b> підзаголовки, теорія, хід роботи, скріни, схеми, код і результати.</li>
+            <li>✓ Times New Roman 14. Лише для перегляду вами на сайті, з позначкою «Приклад оформлення».</li>
+          </ul>
           <div className="mt-2 text-xs text-muted break-words">Основа: {example.file_name} · {taskFullTitle(task)}</div>
         </div>
-
-        <fieldset>
-          <legend className="label">Переписати новим текстом</legend>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {PARTS.map(([k, l]) => (
-              <label key={k} className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 cursor-pointer text-sm ${rewrite[k] ? "border-primary bg-primary/5" : "border-line"}`}>
-                <input type="checkbox" className="accent-[rgb(var(--primary))]" checked={rewrite[k]} onChange={(e) => setRewrite({ ...rewrite, [k]: e.target.checked })} />{l}
-              </label>
-            ))}
-          </div>
-          {!any && <p className="text-xs text-danger mt-1">Оберіть хоча б одну частину</p>}
-        </fieldset>
-
-        <fieldset>
-          <legend className="label">Виділення в тексті</legend>
-          <div className="flex flex-wrap gap-2">
-            {STYLES.map(([k, l, cls]) => (
-              <button key={k} type="button" className="pill" aria-pressed={emphasis[k]} onClick={() => setEmphasis({ ...emphasis, [k]: !emphasis[k] })}>
-                <span className={cls}>{l}</span>
-              </button>
-            ))}
-          </div>
-        </fieldset>
 
         {billing.isLoading ? <Loading /> : b && b.available > 0 ? (
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-2xl border border-line p-4">
@@ -302,6 +278,8 @@ function Inline({ text }) {
       : p.startsWith("*") ? <i key={i}>{p.slice(1, -1)}</i> : <span key={i}>{p}</span>);
 }
 
+const HEADING_CLASS = { "bold-caps": "uppercase tracking-wide", "bold-underline": "underline underline-offset-4", "bold-italic": "italic" };
+
 const WATERMARK = `url("data:image/svg+xml,${encodeURIComponent(
   "<svg xmlns='http://www.w3.org/2000/svg' width='420' height='260'><text x='20' y='150' transform='rotate(-24 210 130)' font-family='Arial' font-size='20' fill='rgba(15,90,70,0.10)'>Приклад оформлення · UniPars</text></svg>")}")`;
 
@@ -336,7 +314,7 @@ export function RegenerationPage() {
             {r.result.title && <h1 className="text-center font-bold mb-4" style={{ fontSize: "14pt" }}>{r.result.title}</h1>}
             {r.result.sections.map((s, i) => (
               <section key={i} className="mb-3">
-                {s.heading && <h2 className="font-bold mt-3 mb-1" style={{ fontSize: "14pt" }}><Inline text={s.heading} /></h2>}
+                {s.heading && <h2 className={`font-bold mt-3 mb-1 ${HEADING_CLASS[r.result.heading_style] || ""}`} style={{ fontSize: "14pt" }}><Inline text={s.heading} /></h2>}
                 {s.blocks.map((bl, j) =>
                   bl.type === "paragraph" ? <p key={j} className="mb-2 text-justify indent-[1.25cm]"><Inline text={bl.text} /></p>
                   : bl.type === "list" ? (bl.ordered ? <ol key={j} className="list-decimal pl-[1.25cm] mb-2">{bl.items.map((it, k) => <li key={k}><Inline text={it} /></li>)}</ol>

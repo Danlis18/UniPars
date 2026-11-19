@@ -25,8 +25,7 @@ class MockResult(BaseModel):
 
 
 class RegenerateOptions(BaseModel):
-    rewrite: dict[Literal["headings", "theory", "procedure", "conclusions"], bool]
-    emphasis: dict[Literal["bold", "italic", "underline"], bool] = {}
+    pass  # налаштувань немає: стилізація випадкова, підзаголовки/теорія/хід роботи — дослівно
 
 
 @router.get("/billing")
@@ -62,8 +61,8 @@ async def monobank_webhook(request: Request, x_sign: str = Header(default="")):
 
 
 @router.post("/submissions/{submission_id}/regenerate", status_code=201)
-def regenerate(submission_id: str, data: RegenerateOptions, background: BackgroundTasks, c: Ctx = Depends(ctx)):
-    return RegenerationService(c.store, c.access).start(submission_id, data.model_dump(), get_storage(), background)
+def regenerate(submission_id: str, background: BackgroundTasks, data: RegenerateOptions | None = None, c: Ctx = Depends(ctx)):
+    return RegenerationService(c.store, c.access).start(submission_id, {}, get_storage(), background)
 
 
 @router.get("/regenerations")

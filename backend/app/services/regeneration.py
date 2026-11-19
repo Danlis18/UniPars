@@ -1,10 +1,11 @@
 """«Регенерувати звіт»: приклад іншого оформлення затвердженого звіту.
 
 Межі (узгоджено):
-- переписується лише текст обраних частин (підзаголовки / теорія / хід роботи / висновки);
+- підзаголовки, теорія й хід роботи — ДОСЛІВНО, без переписування; висновки — тими самими думками іншими словами;
 - порядок розділів, теорії, підзаголовків і пунктів ходу роботи — без змін;
 - скріни, схеми, код, команди, числа й результати — з оригіналу, без змін;
-- виділення (жирний / курсив / підкреслення) — на вибір; шрифт у перегляді — Times New Roman 14;
+- стилізація випадкова при кожній генерації: виділення ключових термінів (жирний / курсив / підкреслення)
+  і стиль підзаголовків; шрифт у перегляді — Times New Roman 14;
 - результат лише для перегляду власником на сайті з позначкою «Приклад оформлення · UniPars», без файлу для завантаження.
 """
 from __future__ import annotations
@@ -12,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import random
 import re
 import uuid
 from datetime import datetime, timezone
@@ -24,19 +26,31 @@ from app.repositories.store import Row, Store
 from app.services.access import Access
 from app.services.billing import BillingService
 
-PARTS = {"headings": "підзаголовки", "theory": "теоретичні відомості", "procedure": "хід роботи", "conclusions": "висновки"}
 EMPHASIS = {"bold": "жирний", "italic": "курсив", "underline": "підкреслення"}
+HEADING_STYLES = ("bold", "bold-caps", "bold-underline", "bold-italic")
+DENSITY = {"light": "2–3 ключові терміни на розділ", "medium": "4–6 ключових термінів і понять на розділ",
+           "rich": "ключові терміни, назви команд у тексті та головна думка кожного абзацу"}
+
+
+def random_style() -> Row:
+    """Випадкова стилізація: які види виділення, наскільки густо, стиль підзаголовків."""
+    rng = random.SystemRandom()
+    kinds = [k for k in EMPHASIS if rng.random() < 0.6] or [rng.choice(list(EMPHASIS))]
+    return {"emphasis": kinds, "density": rng.choice(list(DENSITY)), "heading": rng.choice(HEADING_STYLES),
+            "seed": rng.randrange(1, 10**6)}
 MAX_SOURCE_CHARS = 60000
 
 SYSTEM = """Ти — редактор навчальних звітів UniPars. Створюєш ПРИКЛАД ІНШОГО ОФОРМЛЕННЯ затвердженого звіту, щоб студенти бачили, як можна інакше сформулювати й подати ту саму роботу.
 
 Суворі правила:
 1. Порядок розділів, підзаголовків, теорії та пунктів ходу роботи — ТОЧНО як в оригіналі. Нічого не переставляй, не додавай і не видаляй.
-2. Переписуй іншими словами ЛИШЕ частини, перелічені в запиті. Решту залиш дослівно.
+2. Підзаголовки, теоретичні відомості й хід роботи — СЛОВО В СЛОВО як в оригіналі. Не перефразовуй, не скорочуй, не доповнюй.
+   Іншими словами можна сформулювати ЛИШЕ висновки (ті самі думки, ті самі числа).
 3. Числа, вимірювання, результати, формули, команди, вивід програм і код — дослівно, без жодних змін.
 4. Маркери [[РИС N]] — це скріни й схеми з оригіналу. Кожен маркер стає блоком {"type":"figure","n":N} на тому самому місці. Не вигадуй нових рисунків, скрінів чи даних.
 5. Зміст і правильність — як в оригіналі: жодних нових тверджень, лише інше формулювання.
-6. Виділення в тексті: **жирний**, *курсив*, __підкреслення__ — лише дозволені в запиті, помірно, для ключових термінів.
+6. Різниця з оригіналом — у стилізації: виділяй ключові терміни лише дозволеними в запиті видами
+   (**жирний**, *курсив*, __підкреслення__) і з указаною густотою. Сам текст при цьому не змінюй.
 
 Відповідь — ЛИШЕ JSON без пояснень:
 {"title": "...", "sections": [{"heading": "...", "blocks": [
@@ -72,7 +86,7 @@ def extract_pdf(data: bytes) -> tuple[str, list[tuple[bytes, str]]]:
 
 def _demo_rewrite(text: str, options: Row) -> Row:
     """Демо-режим без ключа AI: структура з тексту + обрані виділення (для тестів і демонстрації)."""
-    emph = options.get("emphasis") or {}
+    emph = {k: True for k in (options.get("style") or {}).get("emphasis", [])}
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     title = lines.pop(0) if lines else "Звіт"
     sections, current = [], {"heading": "", "blocks": []}
@@ -90,7 +104,8 @@ def _demo_rewrite(text: str, options: Row) -> Row:
                 line = f"**{words[0]}** {words[1]}"
             current["blocks"].append({"type": "paragraph", "text": line})
     sections.append(current)
-    return {"title": title, "sections": [x for x in sections if x["blocks"] or x["heading"]], "engine": "demo"}
+    return {"title": title, "sections": [x for x in sections if x["blocks"] or x["heading"]], "engine": "demo",
+            "heading_style": (options.get("style") or {}).get("heading", "bold")}
 
 
 def _parse_json(text: str) -> Row:
@@ -117,10 +132,7 @@ class RegenerationService:
             raise HTTPException(404, "Звіт не знайдено")
         if sub["mime_type"] != "application/pdf":
             raise HTTPException(415, "Регенерація доступна для звітів у PDF")
-        rewrite = {k: bool((options.get("rewrite") or {}).get(k)) for k in PARTS}
-        if not any(rewrite.values()):
-            raise HTTPException(400, "Оберіть, що переписати: підзаголовки, теорію, хід роботи або висновки")
-        emphasis = {k: bool((options.get("emphasis") or {}).get(k)) for k in EMPHASIS}
+        style = random_style()  # налаштувань не обирають: стиль щоразу випадковий
         if not self._available():
             raise HTTPException(503, "Генерація тимчасово недоступна. Кошти не списано.")
         if self.s.select("regenerations", [("user_id", "eq", self.a.user_id), ("status", "eq", "running")], limit=1):
@@ -130,7 +142,7 @@ class RegenerationService:
         source = billing.consume(rid)  # 402, якщо немає доступних генерацій
         row = self.s.insert("regenerations", {
             "id": rid, "user_id": self.a.user_id, "university_id": sub["university_id"], "submission_id": submission_id,
-            "task_id": sub["task_id"], "options": {"rewrite": rewrite, "emphasis": emphasis}, "status": "running",
+            "task_id": sub["task_id"], "options": {"style": style}, "status": "running",
             "result": None, "error": None, "charged_from": source, "created_at": _now(), "completed_at": None})
         background.add_task(self._run, row, sub, storage)  # виконується після відповіді
         return self._out(row)
@@ -160,16 +172,17 @@ class RegenerationService:
         provider = get_provider()
         if provider is None:  # демо-режим без ключа
             return _demo_rewrite(text, options)
-        parts = ", ".join(PARTS[k] for k, v in options["rewrite"].items() if v)
-        keep = ", ".join(PARTS[k] for k, v in options["rewrite"].items() if not v) or "—"
-        emph = ", ".join(EMPHASIS[k] for k, v in options["emphasis"].items() if v) or "без виділень"
-        prompt = (f"Переписати іншими словами: {parts}.\nЗалишити дослівно: {keep}.\nДозволені виділення: {emph}.\n\n"
+        st = options["style"]
+        emph = ", ".join(EMPHASIS[k] for k in st["emphasis"])
+        prompt = (f"Дослівно: підзаголовки, теорія, хід роботи. Іншими словами: лише висновки.\n"
+                  f"Дозволені виділення: {emph}. Густота: {DENSITY[st['density']]}. Варіант стилізації №{st['seed']}.\n\n"
                   f"Текст звіту (маркери [[РИС N]] — рисунки з оригіналу):\n<<<\n{text[:MAX_SOURCE_CHARS]}\n>>>")
         out = []
         async for chunk in provider.stream(SYSTEM, [ChatMessage(role="user", content=prompt)]):
             out.append(chunk)
         result = _parse_json("".join(out))
         result["engine"] = "ai"
+        result["heading_style"] = st["heading"]
         return result
 
     # ---------- Перегляд ----------

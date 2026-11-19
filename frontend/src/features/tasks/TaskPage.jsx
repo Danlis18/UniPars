@@ -216,8 +216,8 @@ export default function TaskPage() {
         <div className="flex items-start gap-3 rounded-xl border border-line p-3">
           <Wand2 size={18} className="text-primary shrink-0 mt-0.5" aria-hidden />
           <p className="text-xs text-muted">
-            <b className="text-ink">Регенерувати звіт</b> — ШІ покаже приклад іншого оформлення затвердженої роботи: обрані частини іншими словами,
-            той самий порядок розділів і ходу роботи. Натисніть «Регенерувати звіт» біля прикладу вище.
+            <b className="text-ink">Регенерувати звіт</b> — ШІ покаже приклад іншого оформлення затвердженої роботи: нова стилізація
+            й висновки іншими словами, а підзаголовки, теорія й хід роботи — без змін. Натисніть «Регенерувати звіт» біля прикладу вище.
           </p>
         </div>
       </section>

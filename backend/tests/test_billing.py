@@ -2,7 +2,7 @@
 from conftest import MAKSYM, OLENA, SOFIIA, UNI_A, as_user, did
 
 SUB = did("sub:db-lab1-iryna")  # затверджений PDF-приклад
-OPTS = {"rewrite": {"theory": True, "conclusions": True}, "emphasis": {"bold": True}}
+OPTS = {}  # налаштувань немає: стилізація випадкова
 
 
 def pay(client, user, kind, quantity=1, success=True):
@@ -33,17 +33,25 @@ def test_single_purchase_then_regenerate_view_only(client):
     assert r.status_code == 201
     rid = r.json()["id"]
     g = client.get(f"/api/regenerations/{rid}", headers=as_user(OLENA)).json()
-    assert g["status"] == "done" and g["result"]["sections"] and g["options"]["rewrite"]["theory"] is True
+    assert g["status"] == "done" and g["result"]["sections"]
+    st = g["options"]["style"]
+    assert st["emphasis"] and set(st["emphasis"]) <= {"bold", "italic", "underline"}
+    assert g["result"]["heading_style"] in ("bold", "bold-caps", "bold-underline", "bold-italic")
+    # текст теорії/ходу роботи — дослівно з оригіналу (демо-рушій лише додає виділення)
+    text = " ".join(b.get("text", "") for sec in g["result"]["sections"] for b in sec["blocks"]).replace("*", "").replace("_", "")
+    assert "The network layer routes packets between hosts." in text
     assert client.get("/api/billing", headers=as_user(OLENA)).json()["available"] == 0
     # бачить лише той, хто оплатив
     assert client.get(f"/api/regenerations/{rid}", headers=as_user(MAKSYM)).status_code == 404
     assert [x["id"] for x in client.get("/api/regenerations", headers=as_user(OLENA)).json()] == [rid]
 
 
-def test_must_choose_what_to_rewrite_and_no_charge_on_error(client):
+def test_style_is_random_and_other_university_is_not_charged(client):
+    from app.services.regeneration import random_style
+
+    styles = {(tuple(x["emphasis"]), x["density"], x["heading"]) for x in (random_style() for _ in range(40))}
+    assert len(styles) > 5  # кожна генерація стилізована по-різному
     pay(client, OLENA, "single")
-    bad = client.post(f"/api/submissions/{SUB}/regenerate", headers=as_user(OLENA), json={"rewrite": {"theory": False}})
-    assert bad.status_code == 400
     other_uni = client.post(f"/api/submissions/{SUB}/regenerate", headers=as_user(SOFIIA), json=OPTS)
     assert other_uni.status_code == 404
     assert client.get("/api/billing", headers=as_user(OLENA)).json()["available"] == 1
