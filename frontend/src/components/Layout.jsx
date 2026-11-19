@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, BookMarked, ChevronDown, ClipboardList, Home, LayoutGrid, LogOut, Menu, MessageCircle, PanelRight, Search, Settings, Shield, Sparkles, User, X } from "lucide-react";
+import { Bell, BookMarked, ChevronDown, ClipboardList, Home, LayoutGrid, LogOut, Menu, MessageCircle, PanelRight, Search, Settings, Shield, Sparkles, User, Wand2, X } from "lucide-react";
 import { api } from "../lib/api.js";
 import { t } from "../lib/i18n.js";
 import { useSession } from "../app/session.jsx";
@@ -91,6 +91,7 @@ function useNavItems() {
     { to: "/", label: t("nav.home"), icon: Home, end: true },
     { to: "/subjects", label: t("nav.subjects"), icon: LayoutGrid },
     { to: "/submissions", label: "Мої подання", icon: ClipboardList },
+    { to: "/billing", label: "Генерації", icon: Wand2 },
     { to: "/ai", label: t("nav.ai"), icon: Sparkles, soon: !config?.ai_enabled },
     { to: "/saved", label: t("nav.saved"), icon: BookMarked },
     { to: "/messages", label: "Повідомлення", icon: MessageCircle, badge: dms.data?.unread },

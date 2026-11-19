@@ -21,7 +21,7 @@ test.describe("Навчальний посібник: завдання, пода
     const order = await page.locator("#main h2, #main button").evaluateAll((els) => els.map((e) => e.textContent.trim()));
     const idx = (re) => order.findIndex((t) => re.test(t));
     expect(idx(/^Умова завдання/)).toBeLessThan(idx(/^Приклади виконання/));
-    expect(idx(/^Приклади виконання/)).toBeLessThan(idx(/Купити звіт/));
+    expect(idx(/^Приклади виконання/)).toBeLessThan(idx(/^Подати свій варіант/));
 
     await page.getByRole("button", { name: "Подати свій варіант" }).first().click();
     const dialog = page.getByRole("dialog", { name: "Подати свій варіант" });
@@ -135,15 +135,31 @@ test.describe("Навчальний посібник: завдання, пода
     await expect(dialog.getByRole("alert")).toContainText("Непідтримуваний тип файлу");
   });
 
-  test("«Купити звіт» — анонс із позначкою «Скоро»", async ({ page, request }) => {
+  test("регенерація звіту: опис, тестова оплата, генерація й перегляд без збереження", async ({ page, request }) => {
     const olena = await loginAs(page, request, "Олена");
     await page.goto(`/tasks/${await taskId(request, olena, "db", "lab", 1)}`);
-    await expect(page.getByText(/Скоро тут можна буде замовити окремий варіант звіту/).first()).toBeVisible();
-    await page.getByRole("button", { name: /Купити звіт/ }).click();
-    const dialog = page.getByRole("dialog", { name: "Купити звіт" });
-    await expect(dialog.getByText("Скоро", { exact: true })).toBeVisible();
-    await expect(dialog.getByText(/ШІ адаптуватиме структуру/)).toBeVisible();
-    await expect(dialog.getByText(/грн|₴|\$/)).toHaveCount(0); // без цін
+    await page.getByRole("button", { name: "Регенерувати звіт" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Регенерувати звіт" });
+    await expect(dialog.getByText("Що буде зроблено")).toBeVisible();
+    await expect(dialog.getByText("47 ₴")).toBeVisible();
+    await expect(dialog.getByText("350 ₴")).toBeVisible();
+    await dialog.getByRole("button", { name: "Купити" }).click();
+    await expect(page).toHaveURL(/\/billing\/checkout\//);
+    await page.getByRole("button", { name: /Оплатити 47/ }).click();
+    // після оплати генерація запускається сама і відкривається перегляд
+    await expect(page).toHaveURL(/\/regenerations\//, { timeout: 20000 });
+    const doc = page.getByRole("article", { name: "Регенерований звіт" });
+    await expect(doc).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/Збереження й копіювання недоступні/)).toBeVisible();
+    expect(await doc.evaluate((el) => getComputedStyle(el).fontFamily)).toContain("Times New Roman");
+    expect(await doc.evaluate((el) => getComputedStyle(el).userSelect)).toBe("none");
+    // інший користувач цей результат не бачить
+    const url = new URL(page.url()).pathname;
+    await loginAs(page, request, "Максим", url);
+    await expect(page.getByRole("article", { name: "Регенерований звіт" })).toHaveCount(0);
+    // кабінет: історія оплат
+    await loginAs(page, request, "Олена", "/billing");
+    await expect(page.getByText("Оплачено").first()).toBeVisible();
   });
 });
 

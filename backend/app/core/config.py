@@ -65,6 +65,15 @@ class Settings:
     bots_interval_seconds: int = 300
     cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:5173"])
     demo_upload_dir: Path = Path(__file__).resolve().parents[2] / ".demo_uploads"
+    # Оплата: mock — тестова сторінка оплати без грошей; monobank — інтернет-еквайринг monobank
+    payment_provider: str = "mock"
+    monobank_token: str = ""
+    public_api_url: str = ""      # зовнішня адреса backend для webhook monobank
+    frontend_url: str = "http://localhost:5173"  # куди повертати після оплати
+    price_single_kop: int = 4700        # одна генерація — 47 ₴
+    price_subscription_kop: int = 35000  # підписка — 350 ₴ / 30 днів
+    subscription_credits: int = 15
+    price_topup_kop: int = 1800          # докупівля понад підписку — 18 ₴ за генерацію
 
     @property
     def is_demo(self) -> bool:
@@ -99,4 +108,12 @@ def get_settings() -> Settings:
         bots_interval_seconds=max(60, _int("BOTS_INTERVAL_SECONDS", 300)),
         # Браузер надсилає Origin без «/» у кінці — нормалізуємо, щоб не було помилок CORS
         cors_origins=[_origin(o) for o in e("CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()],
+        payment_provider=e("PAYMENT_PROVIDER", "mock").strip().lower(),
+        monobank_token=e("MONOBANK_TOKEN", "").strip(),
+        public_api_url=e("PUBLIC_API_URL", "").strip().rstrip("/"),
+        frontend_url=(e("FRONTEND_URL", "") or "http://localhost:5173").strip().rstrip("/"),
+        price_single_kop=_int("PRICE_SINGLE_KOP", 4700),
+        price_subscription_kop=_int("PRICE_SUBSCRIPTION_KOP", 35000),
+        subscription_credits=_int("SUBSCRIPTION_CREDITS", 15),
+        price_topup_kop=_int("PRICE_TOPUP_KOP", 1800),
     )

@@ -206,11 +206,27 @@ def ahead(hours: float) -> str:
     return (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat()
 
 
-# Мінімальний коректний PDF для демо-файлів (відкривається переглядачем)
-DEMO_PDF = (b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj "
-            b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 120]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj "
-            b"4 0 obj<</Length 44>>stream\nBT /F1 14 Tf 20 60 Td (UniPars demo) Tj ET\nendstream endobj "
-            b"5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF")
+def make_pdf(lines: list[str]) -> bytes:
+    """Коректний PDF (з таблицею xref) з текстом рядками — для демо-файлів і тестів."""
+    text = " ".join(f"({l}) Tj T*" for l in lines)
+    stream = f"BT /F1 12 Tf 14 TL 40 760 Td {text} ET".encode()
+    objs = [b"<</Type/Catalog/Pages 2 0 R>>", b"<</Type/Pages/Kids[3 0 R]/Count 1>>",
+            b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>",
+            b"<</Length %d>>stream\n" % len(stream) + stream + b"\nendstream",
+            b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>"]
+    out, offsets = bytearray(b"%PDF-1.4\n"), []
+    for i, o in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += b"%d 0 obj" % i + o + b"endobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1)
+    out += b"".join(b"%010d 00000 n \n" % off for off in offsets)
+    out += b"trailer<</Size %d/Root 1 0 R>>\nstartxref\n%d\n%%%%EOF" % (len(objs) + 1, xref)
+    return bytes(out)
+
+
+DEMO_PDF = make_pdf(["UniPars demo report", "Theory", "The network layer routes packets between hosts.",
+                     "Procedure", "1. Run ping and traceroute.", "Conclusions", "The route has 6 hops."])
 
 
 def _seed_tasks(store, sid, olena, maksym, iryna, andrii) -> None:

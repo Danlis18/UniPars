@@ -1,13 +1,14 @@
 import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, MessageCircleQuestion, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, MessageCircleQuestion, Pencil, Plus, Trash2, Upload, Wand2 } from "lucide-react";
 import { api, uploadFile } from "../../lib/api.js";
 import { timeAgo } from "../../lib/format.js";
 import { Avatar, Empty, ErrorState, Loading, Modal, useConfirm, useToast } from "../../components/ui.jsx";
 import { PageHeader } from "../../components/PageHeader.jsx";
 import Markdown from "../../components/Markdown.jsx";
-import { AuthorLine, BuyReport, DeadlineChip, FileRow, KINDS, StatusChip, SubmitDialog, deadlineInfo, taskLabel } from "./shared.jsx";
+import { RegenerateDialog } from "../billing/pages.jsx";
+import { AuthorLine, DeadlineChip, FileRow, KINDS, StatusChip, SubmitDialog, deadlineInfo, taskLabel } from "./shared.jsx";
 
 function Section({ id, title, count, children, action }) {
   return (
@@ -92,6 +93,7 @@ export default function TaskPage() {
   const confirm = useConfirm();
   const [submitting, setSubmitting] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [regen, setRegen] = useState(null);
   const q = useQuery({ queryKey: ["task", id], queryFn: () => api(`/tasks/${id}`) });
   const questions = useQuery({
     queryKey: ["posts", "task-questions", id],
@@ -173,6 +175,11 @@ export default function TaskPage() {
                     <AuthorLine author={e.author} />
                     <span aria-hidden>·</span><time dateTime={e.published_at} className="shrink-0">{timeAgo(e.published_at)}</time>
                   </span>
+                  {e.format === "PDF" && (
+                    <button type="button" className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline" onClick={() => setRegen(e)}>
+                      <Wand2 size={14} aria-hidden /> Регенерувати звіт
+                    </button>
+                  )}
                 </FileRow>
               </li>
             ))}
@@ -206,7 +213,13 @@ export default function TaskPage() {
             <Link to="/submissions" className="inline-block mt-2 text-xs text-primary hover:underline">Усі мої подання</Link>
           </div>
         )}
-        <BuyReport />
+        <div className="flex items-start gap-3 rounded-xl border border-line p-3">
+          <Wand2 size={18} className="text-primary shrink-0 mt-0.5" aria-hidden />
+          <p className="text-xs text-muted">
+            <b className="text-ink">Регенерувати звіт</b> — ШІ покаже приклад іншого оформлення затвердженої роботи: обрані частини іншими словами,
+            той самий порядок розділів і ходу роботи. Натисніть «Регенерувати звіт» біля прикладу вище.
+          </p>
+        </div>
       </section>
 
       {/* Питання з цього завдання */}
@@ -231,6 +244,7 @@ export default function TaskPage() {
       </nav>
 
       <SubmitDialog task={t} open={submitting} onClose={() => setSubmitting(false)} />
+      {regen && <RegenerateDialog example={regen} task={t} open={Boolean(regen)} onClose={() => setRegen(null)} />}
       {t.can_manage && editing && <EditTaskDialog task={t} open={editing} onClose={() => setEditing(false)} />}
     </>
   );

@@ -25,6 +25,7 @@ class Storage(Protocol):
     def put(self, path: str, data: bytes, content_type: str) -> None: ...
     def signed_url(self, path: str, file_name: str, download: bool = False) -> str: ...
     def remove(self, path: str) -> None: ...
+    def get(self, path: str) -> bytes: ...
 
 
 class LocalStorage:
@@ -48,6 +49,9 @@ class LocalStorage:
 
     def remove(self, path):
         self._file(path).unlink(missing_ok=True)
+
+    def get(self, path):
+        return self._file(path).read_bytes()
 
     def _sign(self, payload: str) -> str:
         return hmac.new(self.secret, payload.encode(), hashlib.sha256).hexdigest()[:32]
@@ -115,6 +119,9 @@ class SupabaseStorage:
 
     def remove(self, path):
         self.bucket.remove([path])
+
+    def get(self, path):
+        return self.bucket.download(path)
 
     def signed_url(self, path, file_name, download=False):
         # Без параметра download Supabase віддає файл inline — PDF і зображення відкриваються в браузері

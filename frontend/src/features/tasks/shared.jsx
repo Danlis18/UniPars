@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Download, ExternalLink, Eye, FileText, Lock, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
+import { CalendarClock, Download, ExternalLink, Eye, FileText, Upload, X } from "lucide-react";
 import { api, uploadFile } from "../../lib/api.js";
 import { fileSize } from "../../lib/format.js";
 import { Avatar, Modal, useToast } from "../../components/ui.jsx";
@@ -247,28 +247,5 @@ export function SubmitDialog({ task, open, onClose }) {
         </div>
       </form>
     </Modal>
-  );
-}
-
-export const BUY_TEXT = "Скоро тут можна буде замовити окремий варіант звіту для цього завдання. ШІ адаптуватиме структуру, формулювання й оформлення, щоб кожен варіант відрізнявся від інших.";
-
-// «Купити звіт» — поки лише анонс, без оплати й замовлень
-export function BuyReport() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-      <button type="button" className="btn-ghost shrink-0" onClick={() => setOpen(true)}>
-        <ShoppingBag size={16} /> Купити звіт <span className="chip bg-lime/20 text-lime !px-1.5 !py-0 text-[10px]">Скоро</span>
-      </button>
-      <p className="text-xs text-muted">{BUY_TEXT}</p>
-      <Modal open={open} onClose={() => setOpen(false)} title="Купити звіт" labelledBy="buy-h">
-        <div className="p-5 text-center">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-lime/15 text-lime grid place-items-center mb-3"><Sparkles size={26} aria-hidden /></div>
-          <span className="chip bg-lime/20 text-lime mb-3"><Lock size={12} aria-hidden /> Скоро</span>
-          <p className="text-sm leading-relaxed">{BUY_TEXT}</p>
-          <button className="btn-primary mt-5" onClick={() => setOpen(false)}>Зрозуміло</button>
-        </div>
-      </Modal>
-    </div>
   );
 }
