@@ -66,6 +66,8 @@ class Settings:
     cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:5173"])
     demo_upload_dir: Path = Path(__file__).resolve().parents[2] / ".demo_uploads"
     # Оплата: mock — тестова сторінка оплати без грошей; monobank — інтернет-еквайринг monobank
+    ai_chat_enabled: bool = False  # AI-чат окремо від регенерації: поки false — сторінка AI під «SOON»
+    mock_payments_for_all: bool = False  # тестова оплата на продакшні лише для модерації/адміністраторів
     payment_provider: str = "mock"
     monobank_token: str = ""
     public_api_url: str = ""      # зовнішня адреса backend для webhook monobank
@@ -78,6 +80,11 @@ class Settings:
     @property
     def is_demo(self) -> bool:
         return self.app_mode == "demo"
+
+    @property
+    def chat_enabled(self) -> bool:
+        """AI-чат доступний, лише коли є ключ і його явно ввімкнено (AI_CHAT_ENABLED=1); у демо — як раніше."""
+        return self.ai_enabled and (self.ai_chat_enabled or self.is_demo)
 
     @property
     def ai_enabled(self) -> bool:
@@ -108,6 +115,8 @@ def get_settings() -> Settings:
         bots_interval_seconds=max(60, _int("BOTS_INTERVAL_SECONDS", 300)),
         # Браузер надсилає Origin без «/» у кінці — нормалізуємо, щоб не було помилок CORS
         cors_origins=[_origin(o) for o in e("CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()],
+        ai_chat_enabled=e("AI_CHAT_ENABLED", "").strip().lower() in ("1", "true", "yes"),
+        mock_payments_for_all=e("MOCK_PAYMENTS_FOR_ALL", "").strip().lower() in ("1", "true", "yes"),
         payment_provider=e("PAYMENT_PROVIDER", "mock").strip().lower(),
         monobank_token=e("MONOBANK_TOKEN", "").strip(),
         public_api_url=e("PUBLIC_API_URL", "").strip().rstrip("/"),

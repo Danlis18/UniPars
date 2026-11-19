@@ -68,8 +68,20 @@ class BillingService:
                 "available": acc["credits"] + left, "prices": self.prices()}
 
     # ---------- Оформлення оплати ----------
+    def _mock_allowed(self) -> bool:
+        """Тестова оплата: у демо — всім; на продакшні — лише модерації/адміністраторам (для показу), якщо не дозволено всім."""
+        st = get_settings()
+        if st.is_demo or st.mock_payments_for_all:
+            return True
+        prof = self.s.get("profiles", id=self.uid) or {}
+        if prof.get("is_platform_admin"):
+            return True
+        return any(m.get("role") in ("moderator", "admin") for m in self.s.select("university_memberships", [("user_id", "eq", self.uid)]))
+
     def checkout(self, kind: str, quantity: int = 1) -> Row:
         st = get_settings()
+        if st.payment_provider != "monobank" and not self._mock_allowed():
+            raise HTTPException(503, "Оплата ще не підключена. Спробуйте трохи згодом.")
         if kind not in KIND_LABEL:
             raise HTTPException(400, "Невідомий тип оплати")
         if kind == "topup" and not self.active_subscription():
@@ -120,7 +132,7 @@ class BillingService:
 
     def mock_complete(self, payment_id: str, success: bool) -> Row:
         p = self._own_payment(payment_id)
-        if p["provider"] != "mock" or get_settings().payment_provider != "mock":
+        if p["provider"] != "mock" or get_settings().payment_provider != "mock" or not self._mock_allowed():
             raise HTTPException(400, "Тестова оплата недоступна")
         if p["status"] in ("success", "failure", "expired"):
             return self._out(p)

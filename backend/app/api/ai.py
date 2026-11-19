@@ -15,8 +15,8 @@ router = APIRouter(prefix="/ai")
 @router.get("/status")
 def status():
     s = get_settings()
-    return {"enabled": s.ai_enabled, "provider": s.ai_provider if s.ai_enabled else None,
-            "model": s.ai_model if s.ai_enabled else None}
+    return {"enabled": s.chat_enabled, "provider": s.ai_provider if s.chat_enabled else None,
+            "model": s.ai_model if s.chat_enabled else None}
 
 
 @router.get("/conversations")
@@ -53,6 +53,6 @@ def context_preview(data: ContextPreviewIn, c: Ctx = Depends(ctx)):
 async def send(cid: str, data: AIMessageIn, c: Ctx = Depends(ctx)):
     s = get_settings()
     gen = await AIService(c.store, c.access).stream_reply(
-        get_provider(), cid, data.content, data.context_post_id, data.retry, s.ai_rate_limit_per_minute)
+        get_provider() if (s.is_demo or s.ai_chat_enabled) else None, cid, data.content, data.context_post_id, data.retry, s.ai_rate_limit_per_minute)
     return StreamingResponse(gen, media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

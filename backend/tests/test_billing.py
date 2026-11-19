@@ -92,3 +92,18 @@ def test_failed_generation_is_refunded(client, monkeypatch):
 
 def test_monobank_webhook_rejected_in_mock_mode(client):
     assert client.post("/api/billing/monobank/webhook", content=b"{}", headers={"X-Sign": "x"}).status_code == 404
+
+
+def test_production_mock_payments_only_for_staff(client, monkeypatch):
+    import dataclasses
+
+    from app.core import config
+    from app.services import billing
+    from conftest import IRYNA
+
+    prod = dataclasses.replace(config.get_settings(), app_mode="supabase")  # імітуємо продакшн (store лишається демо)
+    monkeypatch.setattr(billing, "get_settings", lambda: prod)
+    r = client.post("/api/billing/checkout", headers=as_user(OLENA), json={"kind": "single"})
+    assert r.status_code == 503  # студентам тестова оплата на продакшні недоступна
+    p = client.post("/api/billing/checkout", headers=as_user(IRYNA), json={"kind": "single"})
+    assert p.status_code == 201  # модерація може показати повний цикл

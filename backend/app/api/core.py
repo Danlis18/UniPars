@@ -23,7 +23,8 @@ def config():
     s = get_settings()
     import os
 
-    out = {"mode": s.app_mode, "ai_enabled": s.ai_enabled, "ai_model": s.ai_model if s.ai_enabled else None,
+    out = {"mode": s.app_mode, "ai_enabled": s.chat_enabled, "ai_model": s.ai_model if s.chat_enabled else None,
+           "regeneration_enabled": s.ai_enabled or s.is_demo,
            "max_upload_mb": s.max_upload_mb}
     if s.is_demo and os.environ.get("DEMO_SEED") == "showcase":
         out["demo_auth"] = "password"  # тестове середовище для відео: звичайна форма входу замість вибору профілю
