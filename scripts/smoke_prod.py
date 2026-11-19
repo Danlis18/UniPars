@@ -18,7 +18,8 @@ import urllib.request
 DEFAULT_FRONTEND = "https://unipars-frontend-production.up.railway.app"
 DEFAULT_BACKEND = "https://unipars-backend-production.up.railway.app"
 EXPECTED_TABLES = ["faculties", "programs", "study_groups", "subjects", "topics", "news_sources",
-                   "follows", "dm_conversations", "dm_messages", "tasks", "task_files", "submissions"]
+                   "follows", "dm_conversations", "dm_messages", "tasks", "task_files", "submissions",
+                   "payments", "subscriptions", "regenerations"]
 
 
 def fetch(url: str, method: str = "GET", headers: dict | None = None, timeout: int = 30):
