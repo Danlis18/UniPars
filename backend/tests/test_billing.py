@@ -115,3 +115,20 @@ def test_production_mock_payments_only_for_staff(client, monkeypatch):
     assert r.status_code == 503  # студентам тестова оплата на продакшні недоступна
     p = client.post("/api/billing/checkout", headers=as_user(IRYNA), json={"kind": "single"})
     assert p.status_code == 201  # модерація може показати повний цикл
+
+
+def test_title_page_parsed_as_in_original_with_placeholder_name():
+    from app.services.regeneration import PLACEHOLDER_NAME, parse_title_page
+
+    text = "\n".join([
+        "Міністерство освіти і науки України", "Львівський національний університет імені Івана",
+        "Франка Факультет електроніки та комп’ютерних", "технологій", "Звіт", "Про виконання лабораторної роботи №7",
+        "«ФУНКЦІЇ»", "Виконав:", "студент 1 курсу", "групи ФеП-11", "Ліснічук Данило", "Викладач:", "асист. Васюта В. М.",
+        "Львів 2026", "Мета: Вивчити поняття і застосування функцій.", "Хід роботи"])
+    tp, rest = parse_title_page(text)
+    assert tp["top"] == ["Міністерство освіти і науки України", "Львівський національний університет імені Івана Франка",
+                         "Факультет електроніки та комп’ютерних технологій"]
+    assert tp["center"] == ["Звіт", "Про виконання лабораторної роботи №7", "«ФУНКЦІЇ»"]
+    assert PLACEHOLDER_NAME in tp["right"] and "Ліснічук Данило" not in tp["right"]
+    assert tp["right"][-1] == "асист. Васюта В. М." and tp["bottom"] == ["Львів 2026"]
+    assert rest.startswith("Мета:")

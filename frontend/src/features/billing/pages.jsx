@@ -290,6 +290,12 @@ export function RegenerationPage() {
     refetchInterval: (s) => (s.state.data?.status === "running" ? 2500 : false),
   });
   const block = (e) => e.preventDefault();
+  // спільне для аркушів: Times New Roman 14, водяний знак, без виділення й копіювання
+  const sheet = {
+    className: "no-print-doc mx-auto max-w-[210mm] bg-white text-black shadow-xl rounded-sm px-6 sm:px-[20mm] py-8 sm:py-[18mm] select-none",
+    style: { fontFamily: "'Times New Roman', Times, serif", fontSize: "14pt", lineHeight: 1.5, backgroundImage: WATERMARK },
+    onCopy: block, onCut: block, onContextMenu: block, onDragStart: block,
+  };
   if (q.isLoading) return <Loading />;
   if (q.isError) return <ErrorState error={q.error} onRetry={q.refetch} />;
   const r = q.data;
@@ -306,12 +312,20 @@ export function RegenerationPage() {
       ) : (
         <div className="p-3 sm:p-6 bg-sunken min-h-full">
           <p className="text-xs text-muted text-center mb-3">Лише перегляд: приклад іншого оформлення затвердженого звіту. Збереження й копіювання недоступні.</p>
-          <article
-            className="no-print-doc mx-auto max-w-[210mm] bg-white text-black shadow-xl rounded-sm px-6 sm:px-[20mm] py-8 sm:py-[18mm] select-none"
-            style={{ fontFamily: "'Times New Roman', Times, serif", fontSize: "14pt", lineHeight: 1.5, backgroundImage: WATERMARK }}
-            onCopy={block} onCut={block} onContextMenu={block} onDragStart={block}
-            aria-label="Регенерований звіт">
-            {r.result.title && <h1 className="text-center font-bold mb-4" style={{ fontSize: "14pt" }}>{r.result.title}</h1>}
+          {r.result.title_page && (
+            // Титулка — окремий аркуш, розкладка як в оригіналі
+            <article {...sheet} aria-label="Титульна сторінка"
+              className={`${sheet.className} mb-6 flex flex-col justify-between min-h-[160mm] sm:min-h-[257mm]`}>
+              <div className="text-center">{r.result.title_page.top.map((l, i) => <div key={i}>{l}</div>)}</div>
+              <div className="text-center">
+                {r.result.title_page.center.map((l, i) => <div key={i} className={i === 0 ? "font-bold text-[16pt]" : /^«.*»$/.test(l) ? "font-bold" : ""}>{l}</div>)}
+              </div>
+              <div className="self-end text-left min-w-[45%]">{r.result.title_page.right.map((l, i) => <div key={i}>{l}</div>)}</div>
+              <div className="text-center">{r.result.title_page.bottom.map((l, i) => <div key={i}>{l}</div>)}</div>
+            </article>
+          )}
+          <article {...sheet} aria-label="Регенерований звіт">
+            {!r.result.title_page && r.result.title && <h1 className="text-center font-bold mb-4" style={{ fontSize: "14pt" }}>{r.result.title}</h1>}
             {r.result.sections.map((s, i) => (
               <section key={i} className="mb-3">
                 {s.heading && <h2 className={`font-bold mt-3 mb-1 ${HEADING_CLASS[r.result.heading_style] || ""}`} style={{ fontSize: "14pt" }}><Inline text={s.heading} /></h2>}
@@ -326,9 +340,8 @@ export function RegenerationPage() {
                   : bl.type === "figure" ? (
                     <figure key={j} className="my-3 text-center">
                       {r.result.figure_urls?.[bl.n - 1]
-                        ? <img src={r.result.figure_urls[bl.n - 1]} alt={bl.caption || `Рисунок ${bl.n}`} className="mx-auto max-h-[110mm] pointer-events-none" draggable={false} />
-                        : <div className="mx-auto h-24 grid place-items-center border border-dashed border-neutral-400 text-[11pt] text-neutral-500">Рисунок {bl.n}</div>}
-                      <figcaption className="text-[12pt] mt-1">{bl.caption || `Рисунок ${bl.n}`}</figcaption>
+                        ? <img src={r.result.figure_urls[bl.n - 1]} alt="" className="mx-auto max-h-[110mm] pointer-events-none" draggable={false} />
+                        : <div className="mx-auto h-24 border border-dashed border-neutral-400" aria-hidden />}
                     </figure>)
                   : null)}
               </section>

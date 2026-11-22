@@ -48,7 +48,7 @@ SYSTEM = """Ти — редактор навчальних звітів UniPars.
    Іншими словами можна сформулювати ЛИШЕ висновки (ті самі думки, ті самі числа).
 3. Числа, вимірювання, результати, формули, команди, вивід програм і код — дослівно, без жодних змін.
 4. Нумерацію пунктів зберігай: якщо список переривається рисунком, наступний список продовжує номер через "start".
-5. Маркери [[РИС N]] — це скріни й схеми з оригіналу. Кожен маркер стає блоком {"type":"figure","n":N} на тому самому місці. Не вигадуй нових рисунків, скрінів чи даних.
+5. Маркери [[РИС N]] — це скріни й схеми з оригіналу. Кожен маркер стає блоком {"type":"figure","n":N} на тому самому місці, БЕЗ підпису. Не вигадуй нових рисунків, скрінів чи даних.
 6. Зміст і правильність — як в оригіналі: жодних нових тверджень, лише інше формулювання.
 7. Різниця з оригіналом — у стилізації: виділяй ключові терміни лише дозволеними в запиті видами
    (**жирний**, *курсив*, __підкреслення__) і з указаною густотою. Сам текст при цьому не змінюй.
@@ -56,7 +56,7 @@ SYSTEM = """Ти — редактор навчальних звітів UniPars.
 Відповідь — ЛИШЕ JSON без пояснень:
 {"title": "...", "sections": [{"heading": "...", "blocks": [
   {"type": "paragraph", "text": "..."} | {"type": "list", "ordered": true, "start": 1, "items": ["..."]} |
-  {"type": "code", "text": "..."} | {"type": "table", "rows": [["...", "..."]]} | {"type": "figure", "n": 1, "caption": "..."}
+  {"type": "code", "text": "..."} | {"type": "table", "rows": [["...", "..."]]} | {"type": "figure", "n": 1}
 ]}]}"""
 
 
@@ -91,6 +91,39 @@ def extract_pdf(data: bytes) -> tuple[str, list[tuple[bytes, str]]]:
     return "\n".join(parts), images
 
 
+PLACEHOLDER_NAME = "Данило Галицький"  # ім'я на титулці прикладу замість справжнього автора
+_BODY_START = re.compile(r"^(Мета|Тема|Хід роботи|Завдання|Теоретичн|Вступ)\b", re.I)
+_TOP_SPLIT = re.compile(r"\s+(?=(?:Львівський|Національний|Факультет|Кафедра|Інститут)\b)")
+_PERSON = re.compile(r"^[А-ЯІЇЄҐ][а-яіїєґ'’-]+\s+[А-ЯІЇЄҐ][а-яіїєґ'’-]+(\s+[А-ЯІЇЄҐ][а-яіїєґ'’-]+)?$")
+
+
+def parse_title_page(text: str) -> tuple[Row | None, str]:
+    """Титулка — як в оригіналі (шапка, назва роботи, «Виконав/Викладач», місто й рік), ім'я студента → заглушка.
+    Розбираємо кодом, а не ШІ: так рядки не переставляються і нічого не губиться."""
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    end = next((i for i, l in enumerate(lines) if _BODY_START.match(l)), None)
+    head = lines[:end] if end else []
+    if not head or not any(l.startswith(("Виконав", "Виконала", "Звіт")) for l in head):
+        return None, text
+    rest = "\n".join(lines[end:])
+    i_report = next((i for i, l in enumerate(head) if l.startswith("Звіт")), 0)
+    i_author = next((i for i, l in enumerate(head) if l.startswith(("Виконав", "Виконала"))), len(head))
+    i_city = next((i for i in range(len(head) - 1, i_author, -1) if re.search(r"\b(19|20)\d{2}\b", head[i])), len(head))
+    # шапку PDF часто переносить посеред назви — збираємо її знову по рядку на установу
+    top = [x.strip() for x in _TOP_SPLIT.split(" ".join(head[:i_report])) if x.strip()]
+    center = head[i_report:i_author]
+    right, replaced, in_author = [], False, False
+    for l in head[i_author:i_city]:
+        if l.startswith(("Виконав", "Виконала")):
+            in_author = True
+        elif l.startswith(("Викладач", "Перевірив", "Перевірила", "Керівник")):
+            in_author = False
+        if in_author and not replaced and _PERSON.match(l):
+            l, replaced = PLACEHOLDER_NAME, True
+        right.append(l)
+    return {"top": top, "center": center, "right": right, "bottom": head[i_city:]}, rest
+
+
 def _demo_rewrite(text: str, options: Row) -> Row:
     """Демо-режим без ключа AI: структура з тексту + обрані виділення (для тестів і демонстрації)."""
     emph = {k: True for k in (options.get("style") or {}).get("emphasis", [])}
@@ -100,7 +133,7 @@ def _demo_rewrite(text: str, options: Row) -> Row:
     for line in lines:
         m = re.fullmatch(r"\[\[РИС (\d+)\]\]", line)
         if m:
-            current["blocks"].append({"type": "figure", "n": int(m.group(1)), "caption": f"Рисунок {m.group(1)}"})
+            current["blocks"].append({"type": "figure", "n": int(m.group(1))})
         elif len(line) < 60 and not line.endswith((".", ",", ";")) and line[:1].isupper():
             if current["blocks"]:
                 sections.append(current)
@@ -165,8 +198,11 @@ class RegenerationService:
                 path = f"{row['university_id']}/regenerations/{row['id']}/fig{i}.{ext}"
                 await asyncio.to_thread(storage.put, path, raw, "image/jpeg" if ext == "jpg" else "image/png")
                 figures.append(path)
-            result = await self._generate(text, row["options"])
+            title_page, body = parse_title_page(text)
+            result = await self._generate(body, row["options"])
             result["figures"] = figures
+            if title_page:
+                result["title_page"] = title_page
             self.s.update("regenerations", {"id": row["id"]}, {"status": "done", "result": result, "completed_at": _now()})
         except Exception as e:  # будь-яка помилка → генерацію повертаємо
             msg = str(e)[:300] if isinstance(e, ValueError) else "Не вдалося згенерувати. Генерацію повернуто на баланс."
