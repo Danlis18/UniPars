@@ -64,30 +64,69 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _page_items(page) -> tuple[list[tuple[float, str]], list[tuple[float, str]]]:
+    """Рядки тексту й картинки сторінки з вертикальною позицією (y у PDF росте догори)."""
+    names = {im.name.rsplit(".", 1)[0] for im in page.images}
+    pieces, imgs = [], []
+
+    def on_text(text, cm, tm, _font, _size):
+        if text:
+            pieces.append((cm[3] * tm[5] + cm[5], text))
+
+    def on_op(op, args, cm, _tm):
+        if op == b"Do" and args and str(args[0]).lstrip("/") in names:
+            imgs.append((cm[5] + cm[3], str(args[0]).lstrip("/")))  # верх картинки
+
+    page.extract_text(visitor_text=on_text, visitor_operand_before=on_op)
+    # шматки з однаковою висотою (±3 pt) — один рядок; Word пише слова окремо, тому склеюємо
+    lines: list[list] = []
+    for y, t in pieces:
+        t = t.replace("\n", " ")
+        for ln in lines:
+            if abs(ln[0] - y) <= 3:
+                ln[1] += t
+                break
+        else:
+            lines.append([y, t])
+    text_lines = [(y, re.sub(r"\s{2,}", " ", t).strip()) for y, t in lines if t.strip()]
+    return text_lines, imgs
+
+
 def extract_pdf(data: bytes) -> tuple[str, list[tuple[bytes, str]]]:
-    """Текст сторінок із маркерами [[РИС N]] і зображення (скріни/схеми) з оригіналу."""
+    """Текст із маркерами [[РИС N]] рівно там, де картинки стоять на сторінці, і самі картинки з оригіналу.
+    Порядок — за положенням на сторінці (зверху вниз), а не за порядком запису в PDF:
+    Word спершу пише весь текст, а потім картинки."""
     from pypdf import PdfReader
 
     reader = PdfReader(io.BytesIO(data))
     parts, images = [], []
     for page in reader.pages:
-        # PDF з Word часто розбиває текст по слову на рядок — layout-режим збирає рядки за положенням
+        by_name = {im.name.rsplit(".", 1)[0]: im for im in page.images}
         try:
-            raw_text = page.extract_text(extraction_mode="layout") or ""
+            text_lines, imgs = _page_items(page)
         except Exception:
-            raw_text = page.extract_text() or ""
-        lines = [re.sub(r"\s{2,}", " ", ln.strip()) for ln in raw_text.splitlines() if ln.strip()]
-        parts.append("\n".join(lines))
-        try:
-            for img in page.images:
-                raw = img.data
-                if len(raw) < 6000:  # іконки й декоративні дрібниці пропускаємо
-                    continue
-                ext = (img.name.rsplit(".", 1)[-1] or "png").lower()
-                images.append((raw, "jpg" if ext in ("jpg", "jpeg") else "png"))
-                parts.append(f"[[РИС {len(images)}]]")
-        except Exception:
-            pass
+            text_lines, imgs = [], []
+        if not text_lines:  # запасний шлях для нестандартних PDF
+            raw = page.extract_text(extraction_mode="layout") or ""
+            parts.extend(re.sub(r"\s{2,}", " ", ln.strip()) for ln in raw.splitlines() if ln.strip())
+            imgs = [(-i, n) for i, n in enumerate(by_name)]
+            text_lines = []
+        seq = [(y, 0, i, ("t", t)) for i, (y, t) in enumerate(text_lines)]
+        seq += [(y, 1, i, ("img", n)) for i, (y, n) in enumerate(imgs)]
+        for _y, _k, _i, (kind, val) in sorted(seq, key=lambda s: (-s[0], s[1], s[2])):
+            if kind == "t":
+                parts.append(val)
+                continue
+            img = by_name.get(val)
+            try:
+                raw = img.data if img else b""
+            except Exception:
+                raw = b""
+            if len(raw) < 6000:  # іконки й декоративні дрібниці пропускаємо
+                continue
+            ext = (img.name.rsplit(".", 1)[-1] or "png").lower()
+            images.append((raw, "jpg" if ext in ("jpg", "jpeg") else "png"))
+            parts.append(f"[[РИС {len(images)}]]")
     return "\n".join(parts), images
 
 

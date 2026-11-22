@@ -316,12 +316,12 @@ export function RegenerationPage() {
             // Титулка — окремий аркуш, розкладка як в оригіналі
             <article {...sheet} aria-label="Титульна сторінка"
               className={`${sheet.className} mb-6 flex flex-col justify-between min-h-[160mm] sm:min-h-[257mm]`}>
-              <div className="text-center">{r.result.title_page.top.map((l, i) => <div key={i}>{l}</div>)}</div>
+              <div className="text-center font-bold">{r.result.title_page.top.map((l, i) => <div key={i}>{l}</div>)}</div>
               <div className="text-center">
                 {r.result.title_page.center.map((l, i) => <div key={i} className={i === 0 ? "font-bold text-[16pt]" : /^«.*»$/.test(l) ? "font-bold" : ""}>{l}</div>)}
               </div>
-              <div className="self-end text-left min-w-[45%]">{r.result.title_page.right.map((l, i) => <div key={i}>{l}</div>)}</div>
-              <div className="text-center">{r.result.title_page.bottom.map((l, i) => <div key={i}>{l}</div>)}</div>
+              <div className="self-end text-right">{r.result.title_page.right.map((l, i) => <div key={i}>{l}</div>)}</div>
+              <div className="text-center font-bold">{r.result.title_page.bottom.map((l, i) => <div key={i}>{l}</div>)}</div>
             </article>
           )}
           <article {...sheet} aria-label="Регенерований звіт">
