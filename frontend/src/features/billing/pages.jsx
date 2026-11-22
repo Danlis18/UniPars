@@ -317,7 +317,7 @@ export function RegenerationPage() {
                 {s.heading && <h2 className={`font-bold mt-3 mb-1 ${HEADING_CLASS[r.result.heading_style] || ""}`} style={{ fontSize: "14pt" }}><Inline text={s.heading} /></h2>}
                 {s.blocks.map((bl, j) =>
                   bl.type === "paragraph" ? <p key={j} className="mb-2 text-justify indent-[1.25cm]"><Inline text={bl.text} /></p>
-                  : bl.type === "list" ? (bl.ordered ? <ol key={j} className="list-decimal pl-[1.25cm] mb-2">{bl.items.map((it, k) => <li key={k}><Inline text={it} /></li>)}</ol>
+                  : bl.type === "list" ? (bl.ordered ? <ol key={j} start={bl.start || 1} className="list-decimal pl-[1.25cm] mb-2">{bl.items.map((it, k) => <li key={k}><Inline text={it} /></li>)}</ol>
                     : <ul key={j} className="list-disc pl-[1.25cm] mb-2">{bl.items.map((it, k) => <li key={k}><Inline text={it} /></li>)}</ul>)
                   : bl.type === "code" ? <pre key={j} className="mb-2 p-3 bg-neutral-100 text-[11pt] whitespace-pre-wrap" style={{ fontFamily: "Consolas, monospace" }}>{bl.text}</pre>
                   : bl.type === "table" ? (
