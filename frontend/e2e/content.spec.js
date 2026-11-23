@@ -268,8 +268,14 @@ test.describe("Соцфункції та повідомлення", () => {
   });
 
   test("агент Парс відкриває скляну панель поверх сайту, підказки клікабельні", async ({ page, request }) => {
+    const failed = [];
+    page.on("response", (r) => r.url().endsWith(".glb") && !r.ok() && failed.push(r.url()));
     await loginAs(page, request, "Олена");
-    await page.getByRole("button", { name: /Агент підтримки UniPars/ }).first().click();
+    const agent = page.getByRole("button", { name: /Агент підтримки UniPars/ }).first();
+    // 3D-модель (parse.glb) підвантажується у вільний момент і малюється в canvas
+    await expect(agent.locator("canvas")).toBeVisible({ timeout: 15_000 });
+    expect(failed).toEqual([]);
+    await agent.click();
     const panel = page.getByRole("dialog", { name: "Допомога UniPars" });
     await expect(panel).toBeVisible();
     await expect(panel.getByText("Відкриється незабаром")).toBeVisible(); // AI — SOON

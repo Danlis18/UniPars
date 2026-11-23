@@ -5,145 +5,119 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { BookOpen, HelpCircle, KeyRound, Search, Sparkles, Upload, X } from "lucide-react";
 import { SoonChip } from "../../features/ai/ComingSoon.jsx";
-import { buildAgent } from "./buildAgent.js";
+import { loadParse } from "./parseModel.js";
 import { useSession } from "../../app/session.jsx";
 
-// 3D-агент підтримки в лівому нижньому куті. Рендер із суперсемплінгом
-// (pixel ratio до 4×) для чіткої картинки на 4K-екранах.
-function AgentCanvas({ size, onActivate, hint }) {
+// 3D-агент підтримки в лівому нижньому куті — модель Парса (parse.glb) з анімаціями з parseModel.js.
+// Рендер із суперсемплінгом (pixel ratio до 3×) для чіткої картинки на 4K-екранах.
+function AgentCanvas({ size, onActivate, hint, open }) {
   const mountRef = useRef(null);
-  const stateRef = useRef({ hover: false, jump: 0 });
+  const stateRef = useRef({ hover: false, open: false });
+  stateRef.current.open = open;
 
   useEffect(() => {
     // 3D запускається, коли браузер вільний (після першого показу сайту) — не гальмує завантаження
     let cancelled = false;
     let cleanup = () => {};
-    const start = () => {
-    if (cancelled) return;
-    const mount = mountRef.current;
-    if (!mount) return;
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    // Програмний рендер (без GPU) — малюємо статичний кадр, щоб не навантажувати процесор
-    const gl = renderer.getContext();
-    const dbg = gl.getExtension("WEBGL_debug_renderer_info");
-    const gpu = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : "";
-    const software = /swiftshader|llvmpipe|software|basic render/i.test(gpu);
-    const still = reduced || software;
-    renderer.setPixelRatio(software ? 1 : Math.min((window.devicePixelRatio || 1) * 1.5, 3));
-    renderer.setSize(size.w, size.h);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
-    mount.appendChild(renderer.domElement);
+    const start = async () => {
+      if (cancelled) return;
+      const mount = mountRef.current;
+      if (!mount) return;
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+      // Програмний рендер (без GPU) — малюємо статичний кадр, щоб не навантажувати процесор
+      const gl = renderer.getContext();
+      const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+      const gpu = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : "";
+      const software = /swiftshader|llvmpipe|software|basic render/i.test(gpu);
+      const still = reduced || software;
 
-    const scene = new THREE.Scene();
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.environment = env;
+      let agent;
+      try {
+        agent = await loadParse({ intro: !still });
+      } catch {
+        renderer.dispose();
+        return; // модель не завантажилась (офлайн) — просто без агента, кнопка допомоги лишається
+      }
+      if (cancelled) { agent.dispose(); renderer.dispose(); return; }
 
-    const camera = new THREE.PerspectiveCamera(28, size.w / size.h, 0.1, 50);
-    camera.position.set(0, 1.25, 8.9);
-    camera.lookAt(0, 1.15, 0);
+      renderer.setPixelRatio(software ? 1 : Math.min((window.devicePixelRatio || 1) * 1.5, 3));
+      renderer.setSize(size.w, size.h);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+      renderer.domElement.style.pointerEvents = "none";
+      mount.appendChild(renderer.domElement);
 
-    scene.add(new THREE.HemisphereLight("#ffffff", "#bfe9dc", 1.1));
-    const key = new THREE.DirectionalLight("#fff6ea", 2.2);
-    key.position.set(3, 5, 5);
-    scene.add(key);
-    const rim = new THREE.DirectionalLight("#2fe0c4", 2.4);
-    rim.position.set(-4, 3, -4);
-    scene.add(rim);
+      const scene = new THREE.Scene();
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      scene.environment = env;
 
-    const agent = buildAgent();
-    scene.add(agent.root, agent.shadow, agent.halo, agent.particles);
+      // кадр: модель ~4.6 одиниці заввишки; у стрибку камера трохи підіймається слідом
+      const camera = new THREE.PerspectiveCamera(27, size.w / size.h, 0.1, 60);
+      const aim = (lift) => { camera.position.set(0, 2.55 + lift * 0.6, 11.2); camera.lookAt(0, 2.45 + lift * 0.6, 0); };
+      aim(0);
 
-    const pointer = { x: 0, y: 0 };
-    const onMove = (e) => {
-      const r = mount.getBoundingClientRect();
-      const cx = r.left + r.width / 2, cy = r.top + r.height * 0.35;
-      pointer.x = Math.max(-1, Math.min(1, (e.clientX - cx) / 500));
-      pointer.y = Math.max(-1, Math.min(1, (e.clientY - cy) / 400));
-    };
-    window.addEventListener("pointermove", onMove, { passive: true });
+      scene.add(new THREE.HemisphereLight("#ffffff", "#bfe9dc", 1.1));
+      const key = new THREE.DirectionalLight("#fff6ea", 2.2);
+      key.position.set(3, 5, 5);
+      scene.add(key);
+      const rim = new THREE.DirectionalLight("#2fe0c4", 2.4);
+      rim.position.set(-4, 3, -4);
+      scene.add(rim);
+      scene.add(agent.root, agent.shadow, agent.halo, agent.particles);
 
-    let visible = true;
-    const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting));
-    io.observe(mount);
+      const pointer = { x: 0, y: 0 };
+      const onMove = (e) => {
+        const r = mount.getBoundingClientRect();
+        const cx = r.left + r.width / 2, cy = r.top + r.height * 0.3;
+        pointer.x = Math.max(-1, Math.min(1, (e.clientX - cx) / 500));
+        pointer.y = Math.max(-1, Math.min(1, (e.clientY - cy) / 400));
+      };
+      window.addEventListener("pointermove", onMove, { passive: true });
 
-    const clock = new THREE.Clock();
-    let raf;
-    let last = 0;
-    const yaw = { v: 0 }, pitch = { v: 0 };
-    const loop = (now = 0) => {
-      if (!still) raf = requestAnimationFrame(loop);
-      if (!visible || document.hidden) return;
-      if (!still && now - last < 1000 / 45) return; // не більше 45 кадрів/с
-      last = now;
-      const t = still ? 0 : clock.getElapsedTime();
-      const st = stateRef.current;
+      let visible = true;
+      const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting));
+      io.observe(mount);
 
-      // стрибок після кліку (затухаюча пружина)
-      st.jump = Math.max(0, st.jump - 0.025);
-      const jumpY = Math.sin((1 - st.jump) * Math.PI) * 0.45 * (st.jump > 0 ? 1 : 0);
-      const bob = Math.sin(t * 2) * 0.05;
-      agent.root.position.y = bob + jumpY;
-      agent.root.rotation.y = Math.sin(t * 0.6) * 0.12 + (st.jump > 0 ? (1 - st.jump) * Math.PI * 2 : 0);
-      agent.shadow.scale.setScalar(1 - (bob + jumpY) * 0.6);
-      agent.torso.scale.y = 1 + Math.sin(t * 2) * 0.015;
+      let raf;
+      let last = 0;
+      let prev = performance.now();
+      const frame = (dt) => {
+        const st = stateRef.current;
+        agent.update(dt, { hover: st.hover, open: st.open, pointer });
+        aim(agent.root.position.y);
+        renderer.render(scene, camera);
+      };
+      const loop = (now) => {
+        raf = requestAnimationFrame(loop);
+        if (!visible || document.hidden) { prev = now; return; }
+        if (now - last < 1000 / 50) return; // не більше 50 кадрів/с
+        last = now;
+        frame((now - prev) / 1000);
+        prev = now;
+      };
+      if (still) frame(1 / 60);
+      else raf = requestAnimationFrame(loop);
 
-      // голова стежить за курсором
-      yaw.v += (pointer.x * 0.55 - yaw.v) * 0.08;
-      pitch.v += (pointer.y * 0.3 - pitch.v) * 0.08;
-      agent.head.rotation.y = yaw.v;
-      agent.head.rotation.x = pitch.v;
-      agent.head.rotation.z = Math.sin(t * 1.3) * 0.04;
-
-      agent.ahoge.rotation.z = Math.sin(t * 3.2) * 0.14 + (st.hover ? Math.sin(t * 14) * 0.1 : 0);
-      agent.ahoge.rotation.x = Math.sin(t * 2.1) * 0.06;
-
-      // права рука махає, коли наводять курсор
-      const [left, right] = agent.arms;
-      left.rotation.z = -0.05 + Math.sin(t * 2) * 0.03;
-      const targetWave = st.hover ? 2.4 + Math.sin(t * 9) * 0.35 : 0.05 + Math.sin(t * 2 + 1) * 0.03;
-      right.rotation.z += (targetWave - right.rotation.z) * 0.15;
-
-      // частинки-знання по орбітах, голографічне кільце пульсує
-      agent.particles.children.forEach((m) => {
-        const u = m.userData, a = t * u.speed + u.phase;
-        m.position.set(Math.cos(a) * u.r, u.y + Math.sin(t * 1.5 + u.phase) * 0.12 + agent.root.position.y, Math.sin(a) * u.r * 0.6);
-      });
-      agent.halo.scale.setScalar(1 + Math.sin(t * 2.2) * 0.05);
-      agent.halo.material.opacity = 0.35 + Math.sin(t * 2.2) * 0.15 + (st.hover ? 0.3 : 0);
-
-      // відблиск пробігає по окулярах при наведенні
-      st.glintT = st.hover ? (st.glintT ?? 0) + 0.04 : 0;
-      const gx = -0.55 + ((st.glintT % 2.2) / 1.1) * 0.55;
-      agent.glint.position.x = gx;
-      agent.glintMat.opacity = st.hover && st.glintT % 2.2 < 2.0 ? 0.55 : 0;
-
-      // «живі» схеми на обличчі
-      agent.skinMat.emissiveIntensity = 0.9 + Math.sin(t * 2.6) * 0.45 + (st.hover ? 0.4 : 0);
-      renderer.render(scene, camera);
-    };
-    loop();
-
-    stateRef.current.poke = () => { stateRef.current.jump = 1; if (still) loop(); };
-    stateRef.current.redraw = () => { if (still) loop(); };
-    cleanup = () => {
-      cancelAnimationFrame(raf);
-      io.disconnect();
-      window.removeEventListener("pointermove", onMove);
-      agent.dispose();
-      env.dispose();
-      pmrem.dispose();
-      renderer.dispose();
-      renderer.domElement.remove();
-    };
+      stateRef.current.poke = () => { if (still) frame(1 / 60); else agent.play("jump"); };
+      stateRef.current.redraw = () => { if (still) frame(1 / 60); };
+      cleanup = () => {
+        cancelAnimationFrame(raf);
+        io.disconnect();
+        window.removeEventListener("pointermove", onMove);
+        agent.dispose();
+        env.dispose();
+        pmrem.dispose();
+        renderer.dispose();
+        renderer.domElement.remove();
+      };
     };
     // Спершу сторінка завантажує свої дані, потім — у вільний момент — агент
     const ric = window.requestIdleCallback;
     let idle = null;
-    const delay = setTimeout(() => { idle = ric ? ric(start, { timeout: 3000 }) : setTimeout(start, 0); }, 1800);
+    const delay = setTimeout(() => { idle = ric ? ric(start, { timeout: 3000 }) : setTimeout(start, 0); }, 1500);
     return () => {
       cancelled = true;
       clearTimeout(delay);
@@ -160,7 +134,8 @@ function AgentCanvas({ size, onActivate, hint }) {
       onPointerEnter={() => { stateRef.current.hover = true; stateRef.current.redraw?.(); }}
       onPointerLeave={() => (stateRef.current.hover = false)}
       className="relative block rounded-3xl focus-visible:outline-2"
-      style={{ width: size.w, height: size.h }}
+      // м'яке бірюзове світіння за спиною — темний костюм не зливається з темною темою
+      style={{ width: size.w, height: size.h, background: "radial-gradient(52% 44% at 50% 52%, rgba(47,224,196,0.16), rgba(47,224,196,0) 72%)" }}
       aria-label={hint}
       title={hint}
     />
@@ -290,7 +265,7 @@ export default function AgentMascot({ compact = false }) {
 
   return (
     <div ref={anchor} className="relative">
-      <AgentCanvas size={size} onActivate={() => (state === "open" ? close() : open())} hint="Агент підтримки UniPars — натисніть, щоб отримати допомогу" />
+      <AgentCanvas size={size} open={state === "open"} onActivate={() => (state === "open" ? close() : open())} hint="Агент підтримки UniPars — натисніть, щоб отримати допомогу" />
       {state !== "closed" && <HelpPanel anchor={anchor} state={state} onClose={close} compact={compact} />}
     </div>
   );
