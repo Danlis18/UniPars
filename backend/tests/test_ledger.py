@@ -81,8 +81,11 @@ class PgStore:
         args = ", ".join(f"{k} => %({k})s" for k in params)
         try:
             row = self.conn.execute(f"select {name}({args}) as r", params).fetchone()
-        except psycopg.errors.RaiseException as e:
-            raise RpcError(e.diag.message_primary or str(e)) from e
+        except psycopg.Error as e:
+            # RAISE у функціях балансу (класи P0…, зокрема власні коди P0402/P0404) → RpcError, як у SupabaseStore
+            if (e.sqlstate or "").startswith("P0"):
+                raise RpcError(e.diag.message_primary or str(e)) from e
+            raise
         return self._plain(row["r"])
 
     def close(self) -> None:
