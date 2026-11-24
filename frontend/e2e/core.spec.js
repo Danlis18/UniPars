@@ -56,6 +56,20 @@ test.describe("Вхід і навігація", () => {
   });
 });
 
+test.describe("Юридичні сторінки", () => {
+  test("публічна оферта доступна без входу: ціни, повернення, реквізити", async ({ page }) => {
+    await page.goto("/offer");
+    await expect(page.getByRole("heading", { name: "Публічна оферта" })).toBeVisible();
+    await expect(page.getByText(/Одна генерація — 47/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "5. Повернення коштів" })).toBeVisible();
+    // реквізитів у тестовому оточенні немає — замість них чесне повідомлення
+    await expect(page.getByText(/Реквізити продавця буде опубліковано/)).toBeVisible();
+    await expect(page).toHaveTitle(/Публічна оферта/);
+    await page.getByRole("link", { name: "Конфіденційність" }).click();
+    await expect(page.getByText(/monobank/).first()).toBeVisible();
+  });
+});
+
 test.describe("Права доступу", () => {
   test("студент іншого університету не бачить завдання й питання", async ({ page, request }) => {
     const olena = await loginAs(page, request, "Олена");

@@ -61,6 +61,7 @@ export default function LoginPage() {
           <span>UniPars — платформа взаємодопомоги студентів</span>
           <a href="/privacy" className="hover:underline">Конфіденційність</a>
           <a href="/terms" className="hover:underline">Умови</a>
+          <a href="/offer" className="hover:underline">Оферта</a>
         </div>
       </div>
       <div className="grid place-items-center p-4">

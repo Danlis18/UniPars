@@ -143,6 +143,8 @@ test.describe("Навчальний посібник: завдання, пода
     await expect(dialog.getByText("Що буде зроблено")).toBeVisible();
     await expect(dialog.getByText("47 ₴")).toBeVisible();
     await expect(dialog.getByText("350 ₴")).toBeVisible();
+    // один рядок згоди з посиланням на оферту — біля кнопок оплати
+    await expect(dialog.getByRole("link", { name: "публічної оферти" })).toHaveAttribute("href", "/offer");
     await dialog.getByRole("button", { name: "Купити" }).click();
     await expect(page).toHaveURL(/\/billing\/checkout\//);
     await page.getByRole("button", { name: /Оплатити 47/ }).click();

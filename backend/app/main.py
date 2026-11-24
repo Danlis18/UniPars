@@ -62,7 +62,8 @@ def health(deep: bool = False):
     if not deep:
         return {"ok": True}
     s = get_settings()
-    out: dict = {"ok": True, "mode": s.app_mode, "ai_enabled": s.ai_enabled, "cors_origins": s.cors_origins}
+    out: dict = {"ok": True, "mode": s.app_mode, "ai_enabled": s.ai_enabled, "cors_origins": s.cors_origins,
+                 "payment_provider": s.payment_provider, "legal_ready": s.legal_ready}
     if s.is_demo:
         return out
     from urllib.parse import urlparse

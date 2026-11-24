@@ -12,6 +12,15 @@ import { taskFullTitle } from "../tasks/shared.jsx";
 const uah = (kop) => `${(kop / 100).toLocaleString("uk-UA", { maximumFractionDigits: 2 })} ₴`;
 const INTENT = "unipars.regenerateIntent"; // що згенерувати після оплати
 
+// Один рядок згоди біля кнопок оплати — з посиланням на оферту
+export function PayConsent({ className = "" }) {
+  return (
+    <p className={`text-xs text-muted ${className}`}>
+      Оплачуючи, ви погоджуєтеся з умовами <Link to="/offer" target="_blank" className="text-primary hover:underline">публічної оферти</Link>.
+    </p>
+  );
+}
+
 export function useBilling() {
   return useQuery({ queryKey: ["billing"], queryFn: () => api("/billing"), staleTime: 15_000 });
 }
@@ -99,6 +108,7 @@ export function RegenerateDialog({ example, task, open, onClose }) {
             </div>
           </div>
         ) : <ErrorState error={billing.error} onRetry={billing.refetch} />}
+        {b && !(b.available > 0) && <PayConsent className="text-center" />}
         {b?.prices.provider === "mock" && <p className="text-xs text-muted text-center">Тестовий режим оплати: гроші не списуються.</p>}
       </div>
     </Modal>
@@ -229,6 +239,7 @@ export function BillingPage() {
             )}
           </div>
         </section>
+        <PayConsent />
         {b.prices.provider === "mock" && <p className="text-xs text-muted">Тестовий режим оплати: гроші не списуються.</p>}
 
         <section className="card overflow-hidden">
