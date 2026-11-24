@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from .store import Filter, Row
+from .store import Filter, Row, RpcError
 
 
 def _escape(text: str) -> str:
@@ -73,6 +73,15 @@ class SupabaseStore:
     def count(self, table, filters=()):
         q = self._apply(self.client.table(table).select("*", count="exact", head=True), filters)
         return q.execute().count or 0
+
+
+    def rpc(self, name, params):
+        from postgrest.exceptions import APIError
+
+        try:
+            return self.client.rpc(name, params).execute().data
+        except APIError as e:
+            raise RpcError(str(e.message or e)) from e
 
 
 __all__ = ["SupabaseStore", "Any"]

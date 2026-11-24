@@ -5,17 +5,21 @@
 - Докупівля (лише з активною підпискою): 18 ₴ за генерацію.
 Списання: спершу генерації підписки, потім разові. Невдала генерація повертається.
 Провайдер: mock (тестова сторінка оплати, без грошей) або monobank (рахунок + webhook з підписом).
+
+Баланс = сума записів credit_ledger. Списання, повернення й зарахування оплати — атомарні функції бази
+(міграція 20261124000014: billing_consume / billing_refund / billing_set_status / billing_balance)
+з блокуванням на користувача; лічильники billing_accounts.credits і subscriptions.credits_left — лише кеш.
 """
 from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
 from app.core.config import get_settings
-from app.repositories.store import Row, Store
+from app.repositories.store import Row, RpcError, Store
 
 KIND_LABEL = {"single": "Регенерація звіту", "subscription": "Підписка UniPars на 30 днів", "topup": "Додаткові генерації"}
 
@@ -47,25 +51,16 @@ class BillingService:
                 "subscription_credits": st.subscription_credits, "topup_kop": st.price_topup_kop,
                 "currency": "UAH", "provider": st.payment_provider}
 
-    def _account(self) -> Row:
-        acc = self.s.get("billing_accounts", user_id=self.uid)
-        if not acc:
-            acc = self.s.insert("billing_accounts", {"user_id": self.uid, "credits": 0, "updated_at": _iso(_now())})
-        return acc
-
     def active_subscription(self) -> Row | None:
-        now = _iso(_now())
-        subs = [s for s in self.s.select("subscriptions", [("user_id", "eq", self.uid), ("period_end", "gte", now)], order="period_end", desc=True)
-                if s["period_start"] <= now]
-        return subs[0] if subs else None
+        return self.s.rpc("billing_balance", {"p_user": self.uid}).get("subscription")
 
     def balance(self) -> Row:
-        acc = self._account()
-        sub = self.active_subscription()
+        b = self.s.rpc("billing_balance", {"p_user": self.uid})
+        sub = b.get("subscription")
         left = sub["credits_left"] if sub else 0
-        return {"credits": acc["credits"], "subscription": ({"period_end": sub["period_end"], "credits_left": sub["credits_left"],
-                                                             "credits_included": sub["credits_included"]} if sub else None),
-                "available": acc["credits"] + left, "prices": self.prices()}
+        return {"credits": b["credits"], "subscription": ({"period_end": sub["period_end"], "credits_left": left,
+                                                         "credits_included": sub["credits_included"]} if sub else None),
+                "available": b["credits"] + left, "prices": self.prices()}
 
     # ---------- Оформлення оплати ----------
     def _mock_allowed(self) -> bool:
@@ -145,66 +140,24 @@ class BillingService:
 
     # ---------- Списання й повернення ----------
     def consume(self, regeneration_id: str) -> str:
-        sub = self.active_subscription()
-        if sub and sub["credits_left"] > 0:
-            self.s.update("subscriptions", {"id": sub["id"]}, {"credits_left": sub["credits_left"] - 1})
-            source = "subscription"
-        else:
-            acc = self._account()
-            if acc["credits"] <= 0:
-                raise HTTPException(402, "Немає доступних генерацій. Оплатіть генерацію або оформіть підписку.")
-            self.s.update("billing_accounts", {"user_id": self.uid}, {"credits": acc["credits"] - 1, "updated_at": _iso(_now())})
-            source = "credits"
-        self.s.insert("credit_ledger", {"user_id": self.uid, "delta": -1, "source": "generation", "payment_id": None,
-                                        "regeneration_id": regeneration_id, "created_at": _iso(_now())})
-        return source
+        """Списує одну генерацію (спершу з підписки). Повертає гаманець: 'subscription' або 'credits'."""
+        try:
+            return self.s.rpc("billing_consume", {"p_user": self.uid, "p_regeneration": regeneration_id})
+        except RpcError as e:
+            if "no_credits" in str(e):
+                raise HTTPException(402, "Немає доступних генерацій. Оплатіть генерацію або оформіть підписку.") from e
+            raise
 
     def refund(self, source: str, regeneration_id: str) -> None:
-        sub = self.active_subscription()
-        if source == "subscription" and sub:
-            self.s.update("subscriptions", {"id": sub["id"]}, {"credits_left": sub["credits_left"] + 1})
-        else:
-            acc = self._account()
-            self.s.update("billing_accounts", {"user_id": self.uid}, {"credits": acc["credits"] + 1, "updated_at": _iso(_now())})
-        self.s.insert("credit_ledger", {"user_id": self.uid, "delta": 1, "source": "refund", "payment_id": None,
-                                        "regeneration_id": regeneration_id, "created_at": _iso(_now())})
+        """Повертає генерацію в той гаманець, з якого її списали; повторне повернення ігнорується."""
+        self.s.rpc("billing_refund", {"p_regeneration": regeneration_id})
 
 
 # ---------- Зміна статусу й зарахування (спільне для mock, webhook і перевірки статусу) ----------
 def set_status(store: Store, p: Row, status: str, reason: str | None = None) -> None:
-    if p["status"] == status and (status != "success" or p.get("applied_at")):
-        return
-    if p["status"] == "success" and status != "success":
-        return  # webhook-и можуть приходити не по порядку: успішний платіж не відкочуємо
-    store.update("payments", {"id": p["id"]}, {"status": status, "failure_reason": reason, "updated_at": _iso(_now())})
-    if status == "success":
-        apply_payment(store, store.get("payments", id=p["id"]))
-
-
-def apply_payment(store: Store, p: Row) -> None:
-    """Зараховує оплату рівно один раз."""
-    if p.get("applied_at") or p["status"] != "success":
-        return
-    store.update("payments", {"id": p["id"]}, {"applied_at": _iso(_now())})
-    st = get_settings()
-    svc = BillingService(store, p["user_id"])
-    if p["kind"] in ("single", "topup"):
-        acc = svc._account()
-        store.update("billing_accounts", {"user_id": p["user_id"]}, {"credits": acc["credits"] + p["quantity"], "updated_at": _iso(_now())})
-        store.insert("credit_ledger", {"user_id": p["user_id"], "delta": p["quantity"], "source": p["kind"], "payment_id": p["id"],
-                                       "regeneration_id": None, "created_at": _iso(_now())})
-    else:
-        sub = svc.active_subscription()
-        if sub:  # продовження: +30 днів і +15 генерацій
-            end = datetime.fromisoformat(sub["period_end"]) + timedelta(days=30)
-            store.update("subscriptions", {"id": sub["id"]}, {"period_end": _iso(end), "credits_left": sub["credits_left"] + st.subscription_credits,
-                                                              "credits_included": sub["credits_included"] + st.subscription_credits})
-        else:
-            store.insert("subscriptions", {"user_id": p["user_id"], "period_start": _iso(_now()), "period_end": _iso(_now() + timedelta(days=30)),
-                                           "credits_included": st.subscription_credits, "credits_left": st.subscription_credits,
-                                           "payment_id": p["id"], "created_at": _iso(_now())})
-        store.insert("credit_ledger", {"user_id": p["user_id"], "delta": st.subscription_credits, "source": "subscription",
-                                       "payment_id": p["id"], "regeneration_id": None, "created_at": _iso(_now())})
+    """Успішний платіж не понижується (webhook-и можуть приходити не по порядку); зарахування — рівно один раз."""
+    store.rpc("billing_set_status", {"p_payment": p["id"], "p_status": status, "p_reason": reason,
+                                     "p_sub_credits": get_settings().subscription_credits})
 
 
 def monobank_webhook(store: Store, body: bytes, x_sign: str) -> None:

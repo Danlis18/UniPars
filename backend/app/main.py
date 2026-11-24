@@ -93,13 +93,21 @@ def health(deep: bool = False):
                             ("university_memberships.entry_year", "university_memberships", "entry_year"),
                             ("faculties.registration_open", "faculties", "registration_open"),
                             ("posts.task_id", "posts", "task_id"),
-                            ("submissions.is_anonymous", "submissions", "is_anonymous")):
+                            ("submissions.is_anonymous", "submissions", "is_anonymous"),
+                            ("credit_ledger.pool", "credit_ledger", "pool")):
         try:
             get_store().count(table, [(col, "is_null", False)])
             schema[key] = "ok"
         except Exception:
             schema[key] = "missing"
             out["ok"] = False
+    # Функції балансу з міграції 14 (баланс = сума журналу); нульовий користувач — без даних
+    try:
+        get_store().rpc("billing_balance", {"p_user": "00000000-0000-0000-0000-000000000000"})
+        schema["billing_functions"] = "ok"
+    except Exception:
+        schema["billing_functions"] = "missing"
+        out["ok"] = False
     try:
         schema["bots"] = get_store().count("profiles", [("is_bot", "eq", True)])
     except Exception:

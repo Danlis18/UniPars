@@ -1,0 +1,3 @@
+-r requirements.txt
+# Лише для тестів: SQL-функції балансу на справжньому Postgres (tests/test_ledger.py, TEST_DATABASE_URL)
+psycopg[binary]>=3.2
