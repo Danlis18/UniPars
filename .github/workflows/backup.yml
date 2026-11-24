@@ -1,0 +1,165 @@
+name: Daily backup
+
+# Щоденний бекап продакшну: дамп бази (public + auth), навчальне відновлення в порожній Postgres
+# з перевіркою кількості рядків і балансу, копія файлів Storage. Усе шифрується (AES-256, gpg)
+# і зберігається як артефакт 14 днів (+ за бажанням у S3-сумісне сховище).
+# Репозиторій публічний: незашифровані дані сюди не потрапляють ніколи.
+# Невдалий запуск — GitHub надсилає лист власнику репозиторію.
+#
+# Секрети (Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL            — рядок підключення Session pooler (порт 5432), не Direct (IPv6)
+#   BACKUP_PASSPHRASE          — довга випадкова фраза; зберігати ще й поза GitHub (менеджер паролів)
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — для копії файлів Storage
+#   необов'язково: BACKUP_S3_BUCKET, BACKUP_S3_ENDPOINT, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+on:
+  schedule:
+    - cron: "17 1 * * *"   # щодня о 03:17 за Києвом (взимку)
+  workflow_dispatch:
+  pull_request:
+    paths: [".github/workflows/backup.yml", "scripts/backup/**"]
+
+concurrency:
+  group: backup-${{ github.event_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # На PR: та сама схема на синтетичній базі (без продакшну й секретів) — перевіряє скрипти й інструменти
+  selftest:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      source:
+        image: postgres:17
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: src }
+        ports: ["5433:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+      target:
+        image: postgres:17
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: restore }
+        ports: ["5434:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      SRC: postgresql://postgres:postgres@localhost:5433/src
+      DST: postgresql://postgres:postgres@localhost:5434/restore
+    steps:
+      - uses: actions/checkout@v4
+      - name: Postgres 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q "psycopg[binary]>=3.2" httpx
+      - name: Синтетичне «джерело» у формі Supabase
+        run: |
+          psql "$SRC" -v ON_ERROR_STOP=1 -q <<'SQL'
+          create role anon nologin; create role authenticated nologin; create role service_role nologin;
+          create schema auth;
+          create table auth.users (id uuid primary key, email text);
+          create table public.universities (id uuid primary key, name text);
+          create table public.profiles (id uuid primary key references auth.users (id), display_name text);
+          create table public.payments (id uuid primary key, user_id uuid references public.profiles (id), amount_kop int);
+          create table public.credit_ledger (id bigserial primary key, user_id uuid references public.profiles (id), delta int);
+          create table public.billing_accounts (user_id uuid primary key, credits int);
+          create view public.billing_reconciliation as
+            select a.user_id from public.billing_accounts a left join public.credit_ledger l on l.user_id = a.user_id
+            group by a.user_id, a.credits having a.credits <> coalesce(sum(l.delta), 0);
+          grant select on public.profiles to authenticated;
+          insert into public.universities select gen_random_uuid(), 'U' || i from generate_series(1, 3) i;
+          insert into auth.users select gen_random_uuid(), 'u' || i || '@example.com' from generate_series(1, 50) i;
+          insert into public.profiles select id, email from auth.users;
+          insert into public.payments select gen_random_uuid(), id, 4700 from public.profiles;
+          insert into public.credit_ledger (user_id, delta) select id, 1 from public.profiles;
+          insert into public.billing_accounts select id, 1 from public.profiles;
+          SQL
+      - run: python scripts/backup/db_check.py counts "$SRC" counts.json
+      - run: pg_dump "$SRC" --format=custom --no-owner --no-privileges --schema=public --schema=auth --file=db.pgcustom
+      - run: bash scripts/backup/restore_rehearsal.sh db.pgcustom "$DST"
+      - run: python scripts/backup/db_check.py verify "$DST" counts.json
+      - name: Шифрування й розшифрування (та сама фраза)
+        env: { BACKUP_PASSPHRASE: selftest-passphrase }
+        run: |
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" --symmetric --cipher-algo AES256 -o db.pgcustom.gpg db.pgcustom
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" -d -o check.pgcustom db.pgcustom.gpg
+          cmp db.pgcustom check.pgcustom && echo "розшифровано без втрат"
+
+  backup:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      target:
+        image: postgres:17
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: restore }
+        ports: ["5434:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      DST: postgresql://postgres:postgres@localhost:5434/restore
+    steps:
+      - name: Секрети на місці
+        run: |
+          missing=""
+          for v in SUPABASE_DB_URL BACKUP_PASSPHRASE SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then echo "::error::Не задано секрети:$missing (див. docs/backup-restore.md)"; exit 1; fi
+          [ ${#BACKUP_PASSPHRASE} -ge 24 ] || { echo "::error::BACKUP_PASSPHRASE має бути щонайменше 24 символи"; exit 1; }
+      - uses: actions/checkout@v4
+      - name: Postgres 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q "psycopg[binary]>=3.2" httpx
+      - name: Кількість рядків до дампу
+        run: python scripts/backup/db_check.py counts "$SUPABASE_DB_URL" counts.json
+      - name: Дамп бази (public + auth)
+        run: |
+          stamp=$(date -u +%Y-%m-%dT%H%MZ)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          pg_dump "$SUPABASE_DB_URL" --format=custom --compress=9 --no-owner --no-privileges \
+            --schema=public --schema=auth --file="db-$stamp.pgcustom"
+          ls -lh "db-$stamp.pgcustom"
+      - name: Навчальне відновлення в порожній Postgres
+        run: bash scripts/backup/restore_rehearsal.sh "db-$STAMP.pgcustom" "$DST"
+      - name: Перевірка відновленої копії
+        run: python scripts/backup/db_check.py verify "$DST" counts.json
+      - name: Файли Storage
+        run: |
+          python scripts/backup/storage_backup.py storage
+          tar -czf "storage-$STAMP.tar.gz" storage
+          ls -lh "storage-$STAMP.tar.gz"
+      - name: Шифрування
+        run: |
+          mkdir out
+          for f in "db-$STAMP.pgcustom" "storage-$STAMP.tar.gz" counts.json; do
+            gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" --symmetric --cipher-algo AES256 -o "out/$f.gpg" "$f"
+          done
+          rm -rf storage "db-$STAMP.pgcustom" "storage-$STAMP.tar.gz"
+          ls -lh out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unipars-backup-${{ env.STAMP }}
+          path: out/
+          retention-days: 14
+          if-no-files-found: error
+      - name: Копія в S3-сумісне сховище (якщо налаштовано)
+        env:
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        if: env.BACKUP_S3_BUCKET != ''
+        run: aws s3 cp out/ "s3://$BACKUP_S3_BUCKET/unipars/$STAMP/" --recursive ${BACKUP_S3_ENDPOINT:+--endpoint-url "$BACKUP_S3_ENDPOINT"}
