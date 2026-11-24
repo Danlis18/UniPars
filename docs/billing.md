@@ -26,7 +26,8 @@
    - `PAYMENT_PROVIDER=monobank`;
    - `MONOBANK_TOKEN=<токен>`;
    - `PUBLIC_API_URL=https://unipars-backend-production.up.railway.app` — на цю адресу monobank надсилає webhook;
-   - `FRONTEND_URL=https://unipars-frontend-production.up.railway.app` — сюди повертає після оплати.
+   - `FRONTEND_URL=https://unipars-frontend-production.up.railway.app` — сюди повертає після оплати;
+   - реквізити продавця для публічної оферти (`/offer`): `LEGAL_NAME` (напр. «ФОП Прізвище Ім'я По батькові»), `LEGAL_TAX_ID` (РНОКПП або ЄДРПОУ), `LEGAL_ADDRESS`, `SUPPORT_EMAIL`; необов'язково `LEGAL_IBAN`, `LEGAL_PHONE`. Без перших чотирьох справжня оплата не відкривається (503), а `/api/health?deep=1` показує `legal_ready: false`.
 3. Як проходить оплата:
    1. backend створює рахунок (`/api/merchant/invoice/create`);
    2. студент оплачує на сторінці monobank;
