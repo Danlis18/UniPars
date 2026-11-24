@@ -77,6 +77,9 @@ class BillingService:
         st = get_settings()
         if st.payment_provider != "monobank" and not self._mock_allowed():
             raise HTTPException(503, "Оплата ще не підключена. Спробуйте трохи згодом.")
+        if st.payment_provider == "monobank" and not st.legal_ready:
+            # гроші приймаємо лише за опублікованою офертою з реквізитами продавця (LEGAL_* і SUPPORT_EMAIL)
+            raise HTTPException(503, "Оплата тимчасово недоступна. Спробуйте трохи згодом.")
         if kind not in KIND_LABEL:
             raise HTTPException(400, "Невідомий тип оплати")
         if kind == "topup" and not self.active_subscription():

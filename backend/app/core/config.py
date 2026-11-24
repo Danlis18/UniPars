@@ -76,6 +76,17 @@ class Settings:
     price_subscription_kop: int = 35000  # підписка — 350 ₴ / 30 днів
     subscription_credits: int = 15
     price_topup_kop: int = 1800          # докупівля понад підписку — 18 ₴ за генерацію
+    # Реквізити продавця для публічної оферти (/offer). Без назви й коду справжня оплата не приймається.
+    legal_name: str = ""        # напр. «ФОП Прізвище Ім'я По батькові»
+    legal_tax_id: str = ""      # РНОКПП (ІПН) ФОП або код ЄДРПОУ
+    legal_address: str = ""     # адреса реєстрації
+    legal_iban: str = ""        # необов'язково
+    legal_phone: str = ""       # необов'язково
+    support_email: str = ""     # пошта для звернень і повернень
+
+    @property
+    def legal_ready(self) -> bool:
+        return bool(self.legal_name and self.legal_tax_id and self.legal_address and self.support_email)
 
     @property
     def is_demo(self) -> bool:
@@ -125,4 +136,10 @@ def get_settings() -> Settings:
         price_subscription_kop=_int("PRICE_SUBSCRIPTION_KOP", 35000),
         subscription_credits=_int("SUBSCRIPTION_CREDITS", 15),
         price_topup_kop=_int("PRICE_TOPUP_KOP", 1800),
+        legal_name=e("LEGAL_NAME", "").strip(),
+        legal_tax_id=e("LEGAL_TAX_ID", "").strip(),
+        legal_address=e("LEGAL_ADDRESS", "").strip(),
+        legal_iban=e("LEGAL_IBAN", "").strip(),
+        legal_phone=e("LEGAL_PHONE", "").strip(),
+        support_email=e("SUPPORT_EMAIL", "").strip(),
     )

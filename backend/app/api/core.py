@@ -25,7 +25,13 @@ def config():
 
     out = {"mode": s.app_mode, "ai_enabled": s.chat_enabled, "ai_model": s.ai_model if s.chat_enabled else None,
            "regeneration_enabled": s.ai_enabled or s.is_demo,
-           "max_upload_mb": s.max_upload_mb}
+           "max_upload_mb": s.max_upload_mb,
+           # для публічної оферти: ціни й реквізити продавця (лише публічні дані)
+           "prices": {"single_kop": s.price_single_kop, "subscription_kop": s.price_subscription_kop,
+                      "subscription_credits": s.subscription_credits, "topup_kop": s.price_topup_kop, "currency": "UAH"},
+           "payment_provider": s.payment_provider,
+           "legal": {"name": s.legal_name, "tax_id": s.legal_tax_id, "address": s.legal_address, "iban": s.legal_iban,
+                     "phone": s.legal_phone, "email": s.support_email, "ready": s.legal_ready}}
     if s.is_demo and os.environ.get("DEMO_SEED") == "showcase":
         out["demo_auth"] = "password"  # тестове середовище для відео: звичайна форма входу замість вибору профілю
     return out

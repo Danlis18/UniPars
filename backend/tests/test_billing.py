@@ -117,6 +117,38 @@ def test_production_mock_payments_only_for_staff(client, monkeypatch):
     assert p.status_code == 201  # модерація може показати повний цикл
 
 
+def test_real_payments_need_published_requisites(client, monkeypatch):
+    import dataclasses
+
+    from app.core import config
+    from app.services import billing
+
+    created = []
+
+    class FakeMono:
+        def create_invoice(self, **kw):
+            created.append(kw)
+            return {"invoice_id": "inv-1", "page_url": "https://pay.example/inv-1"}
+
+    monkeypatch.setattr(billing, "_monobank", lambda: FakeMono())
+    mono = dataclasses.replace(config.get_settings(), payment_provider="monobank")
+    monkeypatch.setattr(billing, "get_settings", lambda: mono)
+    r = client.post("/api/billing/checkout", headers=as_user(OLENA), json={"kind": "single"})
+    assert r.status_code == 503 and created == []  # без оферти з реквізитами гроші не приймаємо
+
+    ready = dataclasses.replace(mono, legal_name="ФОП Тест", legal_tax_id="1234567890", legal_address="Львів",
+                                support_email="support@example.com")
+    monkeypatch.setattr(billing, "get_settings", lambda: ready)
+    r = client.post("/api/billing/checkout", headers=as_user(OLENA), json={"kind": "single"})
+    assert r.status_code == 201 and r.json()["page_url"] == "https://pay.example/inv-1" and len(created) == 1
+
+
+def test_public_config_has_prices_and_requisites_status(client):
+    c = client.get("/api/config").json()
+    assert c["prices"]["single_kop"] == 4700 and c["prices"]["currency"] == "UAH"
+    assert c["legal"]["ready"] is False and set(c["legal"]) >= {"name", "tax_id", "address", "email"}
+
+
 def test_title_page_parsed_as_in_original_with_placeholder_name():
     from app.services.regeneration import PLACEHOLDER_NAME, parse_title_page
 

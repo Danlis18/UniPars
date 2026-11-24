@@ -18,7 +18,7 @@ import { NotificationsPage, SettingsPage } from "../features/profile/pages.jsx";
 import UserProfile from "../features/profile/UserProfile.jsx";
 import LegalPage from "../features/legal/LegalPage.jsx";
 
-const LEGAL = ["/privacy", "/terms"];
+const LEGAL = ["/privacy", "/terms", "/offer"];
 
 const AIPage = lazy(() => import("../features/ai/AIPage.jsx"));
 const AdminPage = lazy(() => import("../features/admin/AdminPage.jsx"));
@@ -70,6 +70,7 @@ const router = createBrowserRouter([
   // Публічні сторінки — без входу й без заставки (їх перевіряє Google під час публікації OAuth)
   { path: "/privacy", element: <LegalPage kind="privacy" /> },
   { path: "/terms", element: <LegalPage kind="terms" /> },
+  { path: "/offer", element: <LegalPage kind="offer" /> },
   {
     element: <Root />,
     children: [
