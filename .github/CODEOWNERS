@@ -1,0 +1,12 @@
+# Власники коду: їхній огляд потрібен для PR, що змінюють ці файли
+# (діє, коли в захисті гілки main увімкнено «Require review from Code Owners»).
+*                                    @Danlis18
+
+# Чутливі зони: гроші, права доступу, база, секрети й деплой
+/backend/app/services/billing.py     @Danlis18
+/backend/app/api/billing.py          @Danlis18
+/backend/app/services/access.py      @Danlis18
+/backend/app/core/                   @Danlis18
+/supabase/                           @Danlis18
+/.github/                            @Danlis18
+/CLAUDE.md                           @Danlis18
