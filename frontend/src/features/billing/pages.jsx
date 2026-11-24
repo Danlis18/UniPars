@@ -268,7 +268,8 @@ export function BillingPage() {
                     <span className="block text-xs text-muted">{timeAgo(p.created_at)}</span></span>
                   <span className="text-right shrink-0"><span className="block font-medium">{uah(p.amount_kop)}</span>
                     <span className={`text-xs ${p.status === "success" ? "text-primary" : p.status === "failure" ? "text-danger" : "text-muted"}`}>
-                      {{ success: "Оплачено", failure: "Не пройшла", expired: "Прострочено", created: "Очікує", processing: "Обробляється" }[p.status]}</span></span>
+                      {{ success: "Оплачено", failure: "Не пройшла", expired: "Прострочено", created: "Очікує", processing: "Обробляється" }[p.status]}</span>
+                    {p.refunded_kop > 0 && <span className="block text-xs text-muted">Повернено {uah(p.refunded_kop)}</span>}</span>
                 </li>
               ))}
             </ul>

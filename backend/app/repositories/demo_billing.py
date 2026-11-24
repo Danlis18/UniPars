@@ -1,4 +1,5 @@
-"""Демо-реалізація функцій балансу з міграції 20261124000014_billing_ledger_balance.sql.
+"""Демо-реалізація функцій балансу з міграцій 20261124000014_billing_ledger_balance.sql
+і 20261125000015_payment_refunds.sql.
 
 Поведінка має збігатися з SQL рядок у рядок: ті самі правила (баланс = сума журналу, списання спершу
 з підписки, повернення в той самий гаманець рівно один раз, успішний платіж не понижується, зарахування
@@ -38,7 +39,8 @@ def _sum(rows) -> int:
 
 def _active_subs(t, user_id: str) -> list[dict]:
     now = _now()
-    return [s for s in t("subscriptions") if s["user_id"] == user_id and _dt(s["period_start"]) <= now <= _dt(s["period_end"])]
+    return [s for s in t("subscriptions") if s["user_id"] == user_id and not s.get("canceled_at")
+            and _dt(s["period_start"]) <= now <= _dt(s["period_end"])]
 
 
 def _sync_cache(t, user_id: str) -> None:
@@ -55,7 +57,7 @@ def _sync_cache(t, user_id: str) -> None:
 
 def _add(t, **row) -> None:
     row = {"id": str(uuid.uuid4()), "payment_id": None, "subscription_id": None, "regeneration_id": None,
-           "created_at": _iso(_now())} | row
+           "refund_id": None, "created_at": _iso(_now())} | row
     t("credit_ledger").append(row)
 
 
@@ -124,9 +126,113 @@ def set_status(t, p_payment: str, p_status: str, p_reason: str | None = None, p_
     return dict(pay)
 
 
+# ---------- Повернення коштів за оплати (міграція 15) ----------
+def _payment(t, p_payment: str) -> dict:
+    pay = next((p for p in t("payments") if p["id"] == p_payment), None)
+    if not pay:
+        raise BillingError("payment_not_found")
+    return pay
+
+
+def _pay_sub_entry(t, p_payment: str) -> dict | None:
+    return next(iter(_ledger(t, payment_id=p_payment, source="subscription")), None)
+
+
+def refund_quote(t, p_payment: str) -> dict:
+    pay = _payment(t, p_payment)
+    active = [r for r in t("refunds") if r["payment_id"] == p_payment and r["status"] in ("pending", "success")]
+    done_gen, done_kop = sum(r["generations"] for r in active), sum(r["amount_kop"] for r in active)
+    blocked = None
+    if pay["status"] != "success" or not pay.get("applied_at"):
+        blocked = "not_paid"
+    elif any(r["status"] == "pending" for r in active):
+        blocked = "pending"
+    if pay["kind"] in ("single", "topup"):
+        left = pay["quantity"] - done_gen
+        unit = pay["amount_kop"] // pay["quantity"]
+        balance = _sum(_ledger(t, user_id=pay["user_id"], pool="credits"))
+        can = max(min(left, balance), 0)
+    else:
+        entry = _pay_sub_entry(t, p_payment)
+        sub_id = entry["subscription_id"] if entry else None
+        left = 0 if done_gen > 0 else (entry["delta"] if entry else 0)
+        unit = pay["amount_kop"]
+        balance = _sum(_ledger(t, subscription_id=sub_id)) if sub_id else 0
+        used = -sum(r["delta"] for r in _ledger(t, subscription_id=sub_id) if r["source"] in ("generation", "refund")) if sub_id else 0
+        can = left if used == 0 else 0
+        if used > 0 and blocked is None:
+            blocked = "subscription_used"
+    if blocked is None and _dt(pay["created_at"]) < _now() - timedelta(days=14):
+        blocked = "expired"
+    if blocked is None and can == 0:
+        blocked = "already_refunded" if left <= 0 else "used"
+    return {"kind": pay["kind"], "quantity": pay["quantity"], "amount_kop": pay["amount_kop"],
+            "refunded_generations": done_gen, "refunded_kop": done_kop, "max_generations": max(left, 0),
+            "refundable_generations": can if blocked is None else 0, "unit_kop": unit, "balance": balance, "blocked": blocked}
+
+
+def refund_start(t, p_payment: str, p_generations: int, p_reason: str, p_admin: str | None, p_force: bool = False) -> dict:
+    pay = _payment(t, p_payment)
+    q = refund_quote(t, p_payment)
+    if q["blocked"] in ("not_paid", "pending"):
+        raise BillingError(f"refund_{q['blocked']}")
+    n = q["max_generations"] if pay["kind"] == "subscription" else (p_generations or 0)
+    if n <= 0 or n > q["max_generations"]:
+        raise BillingError("refund_bad_amount")
+    if not p_force and (q["blocked"] is not None or n > q["refundable_generations"]):
+        raise BillingError(f"refund_{q['blocked'] or 'used'}")
+    amount = pay["amount_kop"] if pay["kind"] == "subscription" else n * q["unit_kop"]
+    take = min(n, max(q["balance"], 0))
+    refund = {"id": str(uuid.uuid4()), "payment_id": p_payment, "user_id": pay["user_id"], "amount_kop": amount,
+              "generations": n, "credits_removed": take, "status": "pending", "reason": p_reason, "forced": bool(p_force),
+              "created_by": p_admin, "failure_reason": None, "prev_period_end": None, "prev_credits_included": None,
+              "created_at": _iso(_now()), "updated_at": _iso(_now())}
+    t("refunds").append(refund)
+    if pay["kind"] == "subscription":
+        entry = _pay_sub_entry(t, p_payment)
+        sub = next(s for s in t("subscriptions") if s["id"] == entry["subscription_id"])
+        refund.update(prev_period_end=sub["period_end"], prev_credits_included=sub["credits_included"])
+        if _dt(sub["period_end"]) - timedelta(days=30) <= _now():
+            sub["canceled_at"] = _iso(_now())
+        else:
+            sub.update(period_end=_iso(_dt(sub["period_end"]) - timedelta(days=30)), credits_included=max(sub["credits_included"] - n, 1))
+        if take > 0:
+            _add(t, user_id=pay["user_id"], delta=-take, source="payment_refund", pool="subscription", subscription_id=sub["id"],
+                 payment_id=p_payment, refund_id=refund["id"])
+    elif take > 0:
+        _add(t, user_id=pay["user_id"], delta=-take, source="payment_refund", pool="credits", payment_id=p_payment, refund_id=refund["id"])
+    _sync_cache(t, pay["user_id"])
+    return dict(refund)
+
+
+def refund_finish(t, p_refund: str, p_success: bool, p_failure: str | None = None) -> dict:
+    refund = next((r for r in t("refunds") if r["id"] == p_refund), None)
+    if not refund:
+        raise BillingError("refund_not_found")
+    if refund["status"] != "pending":
+        return dict(refund)
+    if p_success:
+        refund.update(status="success", updated_at=_iso(_now()))
+        return dict(refund)
+    take = next(iter(_ledger(t, refund_id=p_refund, source="payment_refund")), None)
+    if take:
+        _add(t, user_id=take["user_id"], delta=-take["delta"], source="payment_refund_reversal", pool=take["pool"],
+             subscription_id=take["subscription_id"], payment_id=take["payment_id"], refund_id=p_refund)
+    if refund.get("prev_period_end"):
+        entry = _pay_sub_entry(t, refund["payment_id"])
+        sub = next(s for s in t("subscriptions") if s["id"] == entry["subscription_id"])
+        sub.update(period_end=refund["prev_period_end"], credits_included=refund["prev_credits_included"], canceled_at=None)
+    refund.update(status="failure", failure_reason=(p_failure or "Банк відхилив повернення")[:500], updated_at=_iso(_now()))
+    _sync_cache(t, refund["user_id"])
+    return dict(refund)
+
+
 FUNCTIONS = {
     "billing_balance": balance,
     "billing_consume": consume,
     "billing_refund": refund,
     "billing_set_status": set_status,
+    "billing_refund_quote": refund_quote,
+    "billing_refund_start": refund_start,
+    "billing_refund_finish": refund_finish,
 }

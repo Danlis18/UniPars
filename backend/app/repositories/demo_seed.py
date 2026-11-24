@@ -24,6 +24,9 @@ DEMO_USERS = [
     {"id": did("user:iryna"), "display_name": "Ірина Ткач", "role": "moderator", "uni": UNI_A, "note": "Модераторка університету"},
     {"id": did("user:andrii"), "display_name": "Андрій Мельник", "role": "admin", "uni": UNI_A, "note": "Адміністратор університету"},
     {"id": did("user:sofiia"), "display_name": "Софія Литвин", "role": "student", "uni": UNI_B, "note": "Студентка іншого університету"},
+    # адміністратор платформи: оплати й повернення коштів
+    {"id": did("user:taras"), "display_name": "Тарас Гнатюк", "role": "admin", "uni": UNI_A, "note": "Адміністратор платформи",
+     "platform_admin": True},
 ]
 
 
@@ -58,7 +61,7 @@ def seed(store) -> None:  # noqa: C901 — лінійний сценарій з�
     for u in DEMO_USERS:
         store.insert("profiles", {"id": u["id"], "display_name": u["display_name"], "avatar_url": None, "bio": u["note"],
                                   "locale": "uk", "theme": "system", "active_university_id": u["uni"],
-                                  "is_platform_admin": False})
+                                  "is_platform_admin": u.get("platform_admin", False)})
     groups = {did("user:olena"): g21, did("user:maksym"): g22}
     for u in DEMO_USERS:
         in_a = u["uni"] == UNI_A
@@ -92,7 +95,7 @@ def seed(store) -> None:  # noqa: C901 — лінійний сценарій з�
                 store.insert("topics", {"id": tid[(slug, t)], "university_id": uni, "subject_id": sid[slug], "name": t, "position": i})
     store.insert("subject_programs", {"subject_id": sid["algo"], "program_id": prog_se, "university_id": UNI_A, "course": 2, "semester": 3})
 
-    olena, maksym, iryna, andrii, sofiia = (u["id"] for u in DEMO_USERS)
+    olena, maksym, iryna, andrii, sofiia = (u["id"] for u in DEMO_USERS[:5])
     store.update("profiles", {"id": olena}, {"telegram": "olena_demo", "cover": "lib-hall"})
     store.update("profiles", {"id": iryna}, {"cover": "lviv-roofs"})
     store.update("profiles", {"id": andrii}, {"cover": "code-night"})

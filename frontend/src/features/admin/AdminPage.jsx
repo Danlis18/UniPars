@@ -8,6 +8,7 @@ import { useSession } from "../../app/session.jsx";
 import { Empty, ErrorState, Loading, useConfirm, useToast } from "../../components/ui.jsx";
 import { PageHeader, UrlTabs } from "../../components/PageHeader.jsx";
 import { ModerationQueue, UnassignedMaterials } from "../tasks/SubmissionsPages.jsx";
+import PaymentsAdmin from "./PaymentsAdmin.jsx";
 
 // Кнопки приховано від студентів, але кожна операція окремо перевіряється на backend.
 function useAdmin(key, path, enabled = true) {
@@ -255,13 +256,15 @@ function News() {
 }
 
 export default function AdminPage() {
-  const { isAdmin, isStaff } = useSession();
+  const { isAdmin, isStaff, me } = useSession();
+  const isPlatformAdmin = Boolean(me?.is_platform_admin);
   const [params] = useSearchParams();
   if (!isStaff) return <Empty title="Немає доступу">Цей розділ доступний модераторам та адміністраторам університету.</Empty>;
   const tab = params.get("tab") || "submissions";
   const tabs = [{ value: "submissions", label: "Подання" }, { value: "assign", label: "Розподіл" },
     { value: "overview", label: "Огляд" }, { value: "reports", label: "Скарги" },
-    ...(isAdmin ? [{ value: "members", label: "Учасники" }, { value: "catalog", label: "Каталог" }, { value: "news", label: "Новини" }] : [])];
+    ...(isAdmin ? [{ value: "members", label: "Учасники" }, { value: "catalog", label: "Каталог" }, { value: "news", label: "Новини" }] : []),
+    ...(isPlatformAdmin ? [{ value: "payments", label: "Оплати" }] : [])];
   return (
     <>
       <PageHeader title="Керування університетом"><UrlTabs param="tab" defaultValue="submissions" tabs={tabs} /></PageHeader>
@@ -272,6 +275,7 @@ export default function AdminPage() {
       {isAdmin && tab === "members" && <Members />}
       {isAdmin && tab === "catalog" && <Catalog />}
       {isAdmin && tab === "news" && <News />}
+      {isPlatformAdmin && tab === "payments" && <PaymentsAdmin />}
     </>
   );
 }

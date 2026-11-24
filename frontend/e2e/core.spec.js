@@ -70,6 +70,33 @@ test.describe("Юридичні сторінки", () => {
   });
 });
 
+test.describe("Повернення коштів", () => {
+  test("адміністратор платформи повертає невикористані генерації, студент бачить повернення", async ({ page, request }) => {
+    // студент купує 2 генерації (тестова оплата)
+    await loginAs(page, request, "Максим", "/billing");
+    await page.getByRole("button", { name: /Купити 1 за/ }).click();
+    await page.getByRole("button", { name: /Оплатити 47/ }).click();
+    await expect(page).toHaveURL(/\/billing\/return\//);
+    // адміністратор платформи: Керування → Оплати → Повернути
+    await loginAs(page, request, "Тарас", "/admin?tab=payments");
+    await page.getByRole("button", { name: "Повернути кошти: Максим Бойко" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Повернення коштів" });
+    await expect(dialog.getByText("До повернення: 47 ₴")).toBeVisible();
+    await dialog.getByPlaceholder(/запит студента/).fill("запит студента в підтримку");
+    await dialog.getByRole("button", { name: "Повернути" }).click();
+    await expect(page.getByText(/47 ₴ — повернено/).first()).toBeVisible();
+    // студент: генерацію списано, в історії — повернення, прийшло сповіщення
+    await loginAs(page, request, "Максим", "/billing");
+    await expect(page.getByText("Повернено 47 ₴").first()).toBeVisible();
+  });
+
+  test("студент і адміністратор університету не бачать вкладки «Оплати»", async ({ page, request }) => {
+    await loginAs(page, request, "Андрій", "/admin");
+    await expect(page.getByRole("tab", { name: "Учасники" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Оплати" })).toHaveCount(0);
+  });
+});
+
 test.describe("Права доступу", () => {
   test("студент іншого університету не бачить завдання й питання", async ({ page, request }) => {
     const olena = await loginAs(page, request, "Олена");

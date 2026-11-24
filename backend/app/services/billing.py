@@ -139,7 +139,10 @@ class BillingService:
 
     def history(self) -> Row:
         pays = self.s.select("payments", [("user_id", "eq", self.uid)], order="created_at", desc=True, limit=50)
-        return {"payments": [self._out(p) for p in pays]}
+        refunds = self.s.select("refunds", [("user_id", "eq", self.uid)]) if pays else []
+        return {"payments": [self._out(p) | {"refunded_kop": sum(r["amount_kop"] for r in refunds
+                                                                 if r["payment_id"] == p["id"] and r["status"] == "success")}
+                             for p in pays]}
 
     # ---------- Списання й повернення ----------
     def consume(self, regeneration_id: str) -> str:
@@ -176,3 +179,117 @@ def monobank_webhook(store: Store, body: bytes, x_sign: str) -> None:
         return  # не наш рахунок — відповідаємо 200, щоб банк не повторював
     status = STATUS.get(data.get("status", ""), "processing")
     set_status(store, rows[0], status, data.get("failureReason"))
+
+
+# ---------- Повернення коштів (оферта, розділ 5): лише адміністратор платформи ----------
+REFUND_ERRORS = {
+    "payment_not_found": (404, "Платіж не знайдено"),
+    "refund_not_found": (404, "Повернення не знайдено"),
+    "refund_not_paid": (409, "Платіж не оплачено — повертати нічого"),
+    "refund_pending": (409, "За цим платежем уже є повернення в обробці"),
+    "refund_bad_amount": (422, "Неправильна кількість генерацій для повернення"),
+    "refund_expired": (409, "Минуло понад 14 днів від оплати. Повернути можна лише примусово"),
+    "refund_used": (409, "Генерації з цієї оплати вже використані. Повернути можна лише примусово"),
+    "refund_subscription_used": (409, "З підписки вже використано генерації. Повернути можна лише примусово"),
+    "refund_already_refunded": (409, "За цей платіж уже все повернено"),
+}
+
+
+def _refund_error(e: RpcError) -> HTTPException:
+    for code, (status, text) in REFUND_ERRORS.items():
+        if code in str(e):
+            return HTTPException(status, text)
+    return HTTPException(500, "Не вдалося виконати повернення")
+
+
+class RefundService:
+    def __init__(self, store: Store, access) -> None:
+        if not access.is_platform_admin:
+            raise HTTPException(403, "Повернення коштів доступні лише адміністратору платформи")
+        self.s = store
+        self.a = access
+
+    def payments(self, status: str | None = "success", limit: int = 100) -> list[Row]:
+        filters = [("status", "eq", status)] if status else []
+        pays = self.s.select("payments", filters, order="created_at", desc=True, limit=limit)
+        if not pays:
+            return []
+        ids = [p["id"] for p in pays]
+        refunds = self.s.select("refunds", [("payment_id", "in", ids)], order="created_at", desc=True)
+        users = {u["id"]: u for u in self.s.select("profiles", [("id", "in", list({p["user_id"] for p in pays}))])}
+        out = []
+        for p in pays:
+            rs = [r for r in refunds if r["payment_id"] == p["id"]]
+            u = users.get(p["user_id"]) or {}
+            out.append(BillingService._out(p) | {
+                "user": {"id": p["user_id"], "display_name": u.get("display_name") or "Користувач"},
+                "provider": p["provider"],
+                "refunded_kop": sum(r["amount_kop"] for r in rs if r["status"] in ("pending", "success")),
+                "refunds": [self._refund_out(r) for r in rs],
+            })
+        return out
+
+    @staticmethod
+    def _refund_out(r: Row) -> Row:
+        return {k: r.get(k) for k in ("id", "payment_id", "amount_kop", "generations", "credits_removed", "status",
+                                      "reason", "forced", "failure_reason", "created_at", "updated_at")}
+
+    def quote(self, payment_id: str) -> Row:
+        try:
+            return self.s.rpc("billing_refund_quote", {"p_payment": payment_id})
+        except RpcError as e:
+            raise _refund_error(e) from e
+
+    def refund(self, payment_id: str, generations: int | None, reason: str, force: bool) -> Row:
+        pay = self.s.get("payments", id=payment_id)
+        if not pay:
+            raise HTTPException(404, "Платіж не знайдено")
+        try:
+            r = self.s.rpc("billing_refund_start", {"p_payment": payment_id, "p_generations": generations, "p_reason": reason.strip(),
+                                                    "p_admin": self.a.user_id, "p_force": force})
+        except RpcError as e:
+            raise _refund_error(e) from e
+        if pay["provider"] == "mock":
+            r = self._finish(r, True)  # тестова оплата: грошей не було — повернення одразу успішне
+        else:
+            r = self._ask_bank(pay, r)
+        return self._refund_out(r)
+
+    def refresh(self, refund_id: str) -> Row:
+        """Уточнити в банку статус повернення, що лишилося в обробці."""
+        r = self.s.get("refunds", id=refund_id)
+        if not r:
+            raise HTTPException(404, "Повернення не знайдено")
+        pay = self.s.get("payments", id=r["payment_id"])
+        if r["status"] == "pending" and pay["provider"] == "monobank":
+            try:
+                status = _monobank().cancel_status(pay["invoice_id"], r["id"])
+            except Exception as e:
+                raise HTTPException(502, "Банк тимчасово недоступний. Спробуйте за хвилину.") from e
+            if status in ("success", "failure"):
+                r = self._finish(r, status == "success", "Банк відхилив повернення")
+        return self._refund_out(r)
+
+    def _ask_bank(self, pay: Row, r: Row) -> Row:
+        from app.integrations.payments.monobank import MonobankRejected
+
+        try:
+            status = _monobank().cancel_invoice(invoice_id=pay["invoice_id"], amount_kop=r["amount_kop"], ext_ref=r["id"])
+        except MonobankRejected as e:
+            return self._finish(r, False, f"Банк відхилив повернення: {str(e)[:200]}")
+        except Exception:
+            # мережевий збій: результат невідомий — лишаємо «в обробці», статус уточнюється кнопкою «Оновити»
+            return r
+        if status in ("success", "failure"):
+            return self._finish(r, status == "success", "Банк відхилив повернення")
+        return r
+
+    def _finish(self, r: Row, success: bool, failure: str | None = None) -> Row:
+        r = self.s.rpc("billing_refund_finish", {"p_refund": r["id"], "p_success": success, "p_failure": failure})
+        if success:
+            from app.services.notifications import notify
+
+            notify(self.s, r["user_id"], None, "billing", "Кошти повернено",
+                   f"Повернення {r['amount_kop'] / 100:.2f} ₴ на картку оформлено. Зарахування — до 7 робочих днів, залежно від банку.",
+                   "/billing")
+        return r
