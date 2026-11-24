@@ -81,7 +81,7 @@ def health(deep: bool = False):
     schema = {}
     for table in ("faculties", "programs", "study_groups", "subjects", "topics", "news_sources",
                   "follows", "dm_conversations", "dm_messages", "tasks", "task_files", "submissions",
-                  "payments", "subscriptions", "regenerations"):
+                  "payments", "subscriptions", "regenerations", "refunds"):
         try:
             schema[table] = get_store().count(table)
         except Exception:
@@ -95,7 +95,8 @@ def health(deep: bool = False):
                             ("faculties.registration_open", "faculties", "registration_open"),
                             ("posts.task_id", "posts", "task_id"),
                             ("submissions.is_anonymous", "submissions", "is_anonymous"),
-                            ("credit_ledger.pool", "credit_ledger", "pool")):
+                            ("credit_ledger.pool", "credit_ledger", "pool"),
+                            ("subscriptions.canceled_at", "subscriptions", "canceled_at")):
         try:
             get_store().count(table, [(col, "is_null", False)])
             schema[key] = "ok"
