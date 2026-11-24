@@ -21,6 +21,7 @@ from app.repositories.store import RpcError
 MIGRATIONS = Path(__file__).resolve().parents[2] / "supabase" / "migrations"
 BILLING_SQL = MIGRATIONS / "20261121000013_billing_and_regeneration.sql"
 LEDGER_SQL = MIGRATIONS / "20261124000014_billing_ledger_balance.sql"
+REFUNDS_SQL = MIGRATIONS / "20261125000015_payment_refunds.sql"
 PG_URL = os.environ.get("TEST_DATABASE_URL")
 
 # Мінімальне оточення Supabase, від якого залежать міграції оплати (ролі, auth.uid, батьківські таблиці)
@@ -111,6 +112,7 @@ def _pg_schema(apply_ledger: bool = True):
         c.execute(BILLING_SQL.read_text(encoding="utf-8"))
         if apply_ledger:
             c.execute(LEDGER_SQL.read_text(encoding="utf-8"))
+            c.execute(REFUNDS_SQL.read_text(encoding="utf-8"))
     return schema
 
 
@@ -339,6 +341,8 @@ def test_migration_backfills_pools_and_reconciles_caches():
             c.execute(f"set search_path = {schema}, public")
             c.execute(sql)
             c.execute(sql)  # міграцію можна запускати повторно
+            for _ in range(2):
+                c.execute(REFUNDS_SQL.read_text(encoding="utf-8"))
 
         s = PgStore(PG_URL, schema)
         b = balance(s, uid)
@@ -353,3 +357,121 @@ def test_migration_backfills_pools_and_reconciles_caches():
         s.close()
     finally:
         _drop_schema(schema)
+
+
+# ---------- Повернення коштів за оплати (міграція 15) ----------
+def quote(db, pid: str) -> dict:
+    return db.rpc("billing_refund_quote", {"p_payment": pid})
+
+
+def start(db, pid: str, n: int | None = None, force: bool = False) -> dict:
+    return db.rpc("billing_refund_start", {"p_payment": pid, "p_generations": n, "p_reason": "запит студента",
+                                           "p_admin": None, "p_force": force})
+
+
+def finish(db, rid: str, ok: bool) -> dict:
+    return db.rpc("billing_refund_finish", {"p_refund": rid, "p_success": ok, "p_failure": None if ok else "відмова банку"})
+
+
+def age_payment(db, pid: str, days: int) -> None:
+    when = _now() - timedelta(days=days)
+    if isinstance(db, PgStore):
+        db.conn.execute("update payments set created_at = %s where id = %s", (when, pid))
+    else:
+        next(p for p in db.raw("payments") if p["id"] == pid)["created_at"] = when.isoformat()
+
+
+def test_refund_unused_single_generations(db):
+    uid = user(db)
+    pid = pay(db, uid, "single", 3)
+    consume(db, uid)
+    q = quote(db, pid)
+    assert q["refundable_generations"] == 2 and q["unit_kop"] == 4700 and q["blocked"] is None
+    r = start(db, pid, 2)
+    assert r["status"] == "pending" and r["amount_kop"] == 9400 and r["credits_removed"] == 2
+    assert balance(db, uid)["credits"] == 0  # генерації забрано одразу, ще до відповіді банку
+    with pytest.raises(RpcError, match="refund_pending"):
+        start(db, pid, 1)
+    assert finish(db, r["id"], True)["status"] == "success"
+    assert finish(db, r["id"], False)["status"] == "success"  # повторний виклик нічого не змінює
+    q = quote(db, pid)
+    assert q["refunded_kop"] == 9400 and q["refundable_generations"] == 0 and q["blocked"] == "used"
+    assert_cache_matches_ledger(db, uid)
+
+
+def test_refund_cannot_take_used_generations_without_force(db):
+    uid = user(db)
+    pid = pay(db, uid, "single", 2)
+    consume(db, uid)
+    with pytest.raises(RpcError, match="refund_used"):
+        start(db, pid, 2)
+    r = start(db, pid, 2, force=True)  # напр. подвійна оплата: гроші за 2, забираємо лише те, що лишилось
+    assert r["amount_kop"] == 9400 and r["credits_removed"] == 1 and r["forced"] is True
+    assert balance(db, uid)["credits"] == 0
+
+
+def test_bank_failure_restores_generations(db):
+    uid = user(db)
+    pid = pay(db, uid, "topup", 2)
+    r = start(db, pid, 2)
+    assert balance(db, uid)["credits"] == 0
+    assert finish(db, r["id"], False)["status"] == "failure"
+    assert balance(db, uid)["credits"] == 2
+    assert quote(db, pid)["refundable_generations"] == 2  # можна спробувати ще раз
+    assert_cache_matches_ledger(db, uid)
+
+
+def test_refund_window_is_14_days(db):
+    uid = user(db)
+    pid = pay(db, uid, "single", 1)
+    age_payment(db, pid, 15)
+    assert quote(db, pid)["blocked"] == "expired"
+    with pytest.raises(RpcError, match="refund_expired"):
+        start(db, pid, 1)
+    assert start(db, pid, 1, force=True)["amount_kop"] == 4700
+
+
+def test_unpaid_payment_cannot_be_refunded(db):
+    uid = user(db)
+    pid = payment(db, uid)
+    with pytest.raises(RpcError, match="refund_not_paid"):
+        start(db, pid, 1, force=True)
+
+
+def test_unused_subscription_refunded_in_full_and_ends(db):
+    uid = user(db)
+    pid = pay(db, uid, "subscription", credits=15)
+    r = start(db, pid)
+    assert r["amount_kop"] == 4700 and r["generations"] == 15 and r["credits_removed"] == 15  # сума оплати підписки
+    finish(db, r["id"], True)
+    assert balance(db, uid)["subscription"] is None
+    with pytest.raises(RpcError, match="no_credits"):
+        consume(db, uid)
+    assert_cache_matches_ledger(db, uid)
+
+
+def test_used_subscription_needs_force(db):
+    uid = user(db)
+    pid = pay(db, uid, "subscription", credits=3)
+    consume(db, uid)
+    assert quote(db, pid)["blocked"] == "subscription_used"
+    with pytest.raises(RpcError, match="refund_subscription_used"):
+        start(db, pid)
+    r = start(db, pid, force=True)
+    assert r["credits_removed"] == 2
+
+
+def test_refund_of_renewal_shortens_period_and_failure_restores_it(db):
+    uid = user(db)
+    pay(db, uid, "subscription", credits=15)
+    first_end = balance(db, uid)["subscription"]["period_end"]
+    renewal = pay(db, uid, "subscription", credits=15)
+    r = start(db, renewal)
+    b = balance(db, uid)["subscription"]
+    assert b["credits_left"] == 15 and b["credits_included"] == 15
+    assert datetime.fromisoformat(b["period_end"]) == datetime.fromisoformat(first_end)
+    finish(db, r["id"], False)
+    b = balance(db, uid)["subscription"]
+    assert b["credits_left"] == 30 and b["credits_included"] == 30
+    assert datetime.fromisoformat(b["period_end"]) - datetime.fromisoformat(first_end) == timedelta(days=30)
+    assert_cache_matches_ledger(db, uid)

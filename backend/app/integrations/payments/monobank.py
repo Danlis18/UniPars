@@ -4,6 +4,8 @@
 - POST /api/merchant/invoice/create   (X-Token) → {invoiceId, pageUrl}
 - GET  /api/merchant/invoice/status   (X-Token) → {status, ...}
 - GET  /api/merchant/pubkey           (X-Token) → {key: base64(PEM)} — для перевірки X-Sign у webhook
+- POST /api/merchant/invoice/cancel   (X-Token) → {status: processing|success|failure} — повернення коштів
+  (повне або часткове; extRef — наш id повернення, за ним шукаємо результат у cancelList статусу рахунку)
 Суми — у копійках, валюта 980 (UAH).
 """
 from __future__ import annotations
@@ -24,6 +26,10 @@ STATUS = {"created": "created", "processing": "processing", "hold": "processing"
 
 class MonobankError(Exception):
     pass
+
+
+class MonobankRejected(MonobankError):
+    """Банк точно відхилив запит (4xx) — повторювати без змін марно."""
 
 
 class Monobank:
@@ -54,6 +60,27 @@ class Monobank:
         if r.status_code != 200:
             raise MonobankError(f"monobank: {r.status_code} {r.text[:200]}")
         return STATUS.get(r.json().get("status", ""), "processing")
+
+    def cancel_invoice(self, *, invoice_id: str, amount_kop: int, ext_ref: str) -> str:
+        """Повернення коштів за оплачений рахунок. Повертає processing | success | failure.
+        4xx — банк відмовив (MonobankRejected); мережеві збої й 5xx — MonobankError (результат невідомий)."""
+        body = {"invoiceId": invoice_id, "extRef": ext_ref, "amount": amount_kop}
+        r = httpx.post(f"{API}/api/merchant/invoice/cancel", json=body, headers=self._headers(), timeout=20)
+        if 400 <= r.status_code < 500:
+            raise MonobankRejected(f"monobank: {r.status_code} {r.text[:200]}")
+        if r.status_code != 200:
+            raise MonobankError(f"monobank: {r.status_code} {r.text[:200]}")
+        return r.json().get("status", "processing")
+
+    def cancel_status(self, invoice_id: str, ext_ref: str) -> str | None:
+        """Статус повернення з cancelList рахунку; None — банк ще не знає про таке повернення."""
+        r = httpx.get(f"{API}/api/merchant/invoice/status", params={"invoiceId": invoice_id}, headers=self._headers(), timeout=20)
+        if r.status_code != 200:
+            raise MonobankError(f"monobank: {r.status_code} {r.text[:200]}")
+        for c in r.json().get("cancelList") or []:
+            if c.get("extRef") == ext_ref:
+                return c.get("status", "processing")
+        return None
 
     def _public_key(self, refresh: bool = False):
         # ключ змінюється рідко — кешуємо на добу, при невдалій перевірці пробуємо оновити

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from app.api.context import Ctx, ctx
 from app.core.deps import get_storage, get_store
 from app.services import billing as billing_service
-from app.services.billing import BillingService
+from app.services.billing import BillingService, RefundService
 from app.services.regeneration import RegenerationService
 
 router = APIRouter()
@@ -22,6 +22,12 @@ class Checkout(BaseModel):
 
 class MockResult(BaseModel):
     success: bool = True
+
+
+class RefundRequest(BaseModel):
+    generations: int | None = Field(default=None, ge=1, le=100)  # для підписки не потрібно — лише повністю
+    reason: str = Field(min_length=3, max_length=500)
+    force: bool = False  # подвійна оплата або результат не відповідає опису — без обмежень 14 днів/використання
 
 
 class RegenerateOptions(BaseModel):
@@ -73,3 +79,24 @@ def my_regenerations(c: Ctx = Depends(ctx)):
 @router.get("/regenerations/{regeneration_id}")
 def regeneration(regeneration_id: str, c: Ctx = Depends(ctx)):
     return RegenerationService(c.store, c.access).get(regeneration_id, get_storage())
+
+
+# ---------- Повернення коштів (адміністратор платформи) ----------
+@router.get("/admin/payments")
+def admin_payments(status: str = "success", c: Ctx = Depends(ctx)):
+    return RefundService(c.store, c.access).payments(None if status == "all" else status)
+
+
+@router.get("/admin/payments/{payment_id}/refund-quote")
+def refund_quote(payment_id: str, c: Ctx = Depends(ctx)):
+    return RefundService(c.store, c.access).quote(payment_id)
+
+
+@router.post("/admin/payments/{payment_id}/refunds", status_code=201)
+def create_refund(payment_id: str, data: RefundRequest, c: Ctx = Depends(ctx)):
+    return RefundService(c.store, c.access).refund(payment_id, data.generations, data.reason, data.force)
+
+
+@router.post("/admin/refunds/{refund_id}/refresh")
+def refresh_refund(refund_id: str, c: Ctx = Depends(ctx)):
+    return RefundService(c.store, c.access).refresh(refund_id)
