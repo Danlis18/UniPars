@@ -14,6 +14,10 @@ Filter = tuple[str, str, Any]
 Row = dict[str, Any]
 
 
+class RpcError(Exception):
+    """Помилка функції бази (rpc). message — короткий код, як у `raise exception` у SQL (наприклад, no_credits)."""
+
+
 class Store(Protocol):
     def select(
         self,
@@ -37,6 +41,10 @@ class Store(Protocol):
     def delete(self, table: str, eq: dict[str, Any]) -> int: ...
 
     def count(self, table: str, filters: Iterable[Filter] = ()) -> int: ...
+
+    def rpc(self, name: str, params: Row) -> Any:
+        """Виклик функції бази в одній транзакції (атомарні операції, наприклад баланс генерацій)."""
+        ...
 
 
 def eq(**kw: Any) -> list[Filter]:

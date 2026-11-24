@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-from .store import Filter, Row
+from .store import Filter, Row, RpcError
 
 # Таблиці без колонки id (складений PK)
 _NO_ID = {
@@ -101,6 +101,19 @@ class DemoStore:
 
     def count(self, table, filters=()):
         return len(self.select(table, filters))
+
+    def rpc(self, name, params):
+        # Функції бази (баланс генерацій) — у demo_billing.py; блокування робить виклик атомарним
+        from . import demo_billing
+
+        fn = demo_billing.FUNCTIONS.get(name)
+        if not fn:
+            raise RpcError(f"unknown function {name}")
+        with self._lock:
+            try:
+                return copy.deepcopy(fn(self._table, **params))
+            except demo_billing.BillingError as e:
+                raise RpcError(str(e)) from e
 
     # Для тестів / сидування
     def bulk(self, table: str, rows: list[Row]) -> None:

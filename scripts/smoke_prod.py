@@ -59,6 +59,8 @@ def main() -> int:
     missing = [t for t in EXPECTED_TABLES if not isinstance(schema.get(t), int)]
     if schema.get("profiles.cover") != "ok":
         missing.append("profiles.cover (міграція 5)")
+    if schema.get("credit_ledger.pool") != "ok" or schema.get("billing_functions") != "ok":
+        missing.append("баланс із журналу (міграція 14)")
     check(not missing, "міграції застосовані" + (f" — бракує: {', '.join(missing)}" if missing else f" ({schema})"))
     # Швидкість: простий health не ходить у базу — показує мережеву затримку до backend
     times = [fetch(f"{be}/api/health")[3] for _ in range(3)]
