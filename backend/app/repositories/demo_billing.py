@@ -227,6 +227,15 @@ def refund_finish(t, p_refund: str, p_success: bool, p_failure: str | None = Non
     return dict(refund)
 
 
+# ---------- Безкоштовні генерації на старт (міграція 16) ----------
+def grant_welcome(t, p_user: str, p_amount: int) -> bool:
+    if (p_amount or 0) <= 0 or _ledger(t, user_id=p_user, source="welcome"):
+        return False
+    _add(t, user_id=p_user, delta=p_amount, source="welcome", pool="credits")
+    _sync_cache(t, p_user)
+    return True
+
+
 FUNCTIONS = {
     "billing_balance": balance,
     "billing_consume": consume,
@@ -235,4 +244,5 @@ FUNCTIONS = {
     "billing_refund_quote": refund_quote,
     "billing_refund_start": refund_start,
     "billing_refund_finish": refund_finish,
+    "billing_grant_welcome": grant_welcome,
 }

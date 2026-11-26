@@ -92,6 +92,11 @@ export function RegenerateDialog({ example, task, open, onClose }) {
             <div className="text-sm">Доступно генерацій: <b>{b.available}</b>{b.subscription && <span className="text-muted"> · підписка до {new Date(b.subscription.period_end).toLocaleDateString("uk-UA")}</span>}</div>
             <button className="btn-primary" disabled={!any || busy} onClick={run}>{busy ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />} Регенерувати · 1 генерація</button>
           </div>
+        ) : b && !b.payments_available ? (
+          <div className="rounded-2xl border border-line p-4 text-sm">
+            <b>Безкоштовні генерації закінчились.</b>
+            <span className="block text-muted mt-1">UniPars зараз у бета-версії: кожен має {b.free_generations} безкоштовні генерації. Оплата з'явиться незабаром.</span>
+          </div>
         ) : b ? (
           <div className="grid sm:grid-cols-2 gap-3">
             <div className="rounded-2xl border border-line p-4 flex flex-col">
@@ -108,8 +113,8 @@ export function RegenerateDialog({ example, task, open, onClose }) {
             </div>
           </div>
         ) : <ErrorState error={billing.error} onRetry={billing.refetch} />}
-        {b && !(b.available > 0) && <PayConsent className="text-center" />}
-        {b?.prices.provider === "mock" && <p className="text-xs text-muted text-center">Тестовий режим оплати: гроші не списуються.</p>}
+        {b?.payments_available && !(b.available > 0) && <PayConsent className="text-center" />}
+        {b?.payments_available && b.prices.provider === "mock" && <p className="text-xs text-muted text-center">Тестовий режим оплати: гроші не списуються.</p>}
       </div>
     </Modal>
   );
@@ -216,8 +221,15 @@ export function BillingPage() {
             <div className="text-sm text-muted">Доступно генерацій</div>
             <div className="font-display text-4xl mt-1">{b.available}</div>
             <div className="text-xs text-muted mt-1">Разових: {b.credits}{b.subscription ? ` · з підписки: ${b.subscription.credits_left}` : ""}</div>
-            <button className="btn-ghost mt-3" onClick={() => checkout("single")}><CreditCard size={16} /> Купити 1 за {uah(b.prices.single_kop)}</button>
+            {b.payments_available && <button className="btn-ghost mt-3" onClick={() => checkout("single")}><CreditCard size={16} /> Купити 1 за {uah(b.prices.single_kop)}</button>}
           </div>
+          {!b.payments_available ? (
+            <div className="card p-4 border-primary/50">
+              <div className="text-sm text-primary font-semibold flex items-center gap-1.5"><Wand2 size={15} aria-hidden /> Бета-версія</div>
+              <p className="text-sm mt-1">Кожен отримує <b>{b.free_generations}</b> безкоштовні генерації, щоб спробувати.</p>
+              <p className="text-xs text-muted mt-1">Оплата з'явиться незабаром: підписка {uah(b.prices.subscription_kop)} на 30 днів — {b.prices.subscription_credits} генерацій, далі по {uah(b.prices.topup_kop)}.</p>
+            </div>
+          ) : (
           <div className="card p-4 border-primary/50">
             <div className="text-sm text-primary font-semibold flex items-center gap-1.5"><Crown size={15} aria-hidden /> Підписка</div>
             {b.subscription ? (
@@ -238,9 +250,10 @@ export function BillingPage() {
               </>
             )}
           </div>
+          )}
         </section>
-        <PayConsent />
-        {b.prices.provider === "mock" && <p className="text-xs text-muted">Тестовий режим оплати: гроші не списуються.</p>}
+        {b.payments_available && <PayConsent />}
+        {b.payments_available && b.prices.provider === "mock" && <p className="text-xs text-muted">Тестовий режим оплати: гроші не списуються.</p>}
 
         <section className="card overflow-hidden">
           <h2 className="font-display text-base px-4 pt-3 pb-2">Мої регенеровані звіти</h2>

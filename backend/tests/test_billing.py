@@ -164,3 +164,49 @@ def test_title_page_parsed_as_in_original_with_placeholder_name():
     assert PLACEHOLDER_NAME in tp["right"] and "Ліснічук Данило" not in tp["right"]
     assert tp["right"][-1] == "асист. Васюта В. М." and tp["bottom"] == ["Львів 2026"]
     assert rest.startswith("Мета:")
+
+
+# ---------- Бета: безкоштовні генерації на старт ----------
+def _settings(monkeypatch, **kw):
+    import dataclasses
+
+    from app.core import config
+    from app.services import billing
+
+    st = dataclasses.replace(config.get_settings(), **kw)
+    monkeypatch.setattr(billing, "get_settings", lambda: st)
+    return st
+
+
+def test_free_generations_granted_once_to_onboarded_users(client, monkeypatch):
+    _settings(monkeypatch, free_generations=3)
+    b = client.get("/api/billing", headers=as_user(OLENA)).json()
+    assert b["available"] == 3 and b["credits"] == 3 and b["free_generations"] == 3
+    assert client.get("/api/billing", headers=as_user(OLENA)).json()["available"] == 3  # повторно не нараховує
+    r = client.post(f"/api/submissions/{SUB}/regenerate", headers=as_user(OLENA), json=OPTS)
+    assert r.status_code == 201
+    assert client.get("/api/billing", headers=as_user(OLENA)).json()["available"] == 2
+
+
+def test_free_generations_also_on_first_regeneration(client, monkeypatch):
+    _settings(monkeypatch, free_generations=1)
+    # без попереднього відкриття балансу: нараховується в момент першої генерації
+    assert client.post(f"/api/submissions/{SUB}/regenerate", headers=as_user(MAKSYM), json=OPTS).status_code == 201
+    assert client.get("/api/billing", headers=as_user(MAKSYM)).json()["available"] == 0
+
+
+def test_no_free_generations_without_joining_a_university(client, monkeypatch):
+    from app.core.deps import get_store
+
+    _settings(monkeypatch, free_generations=3)
+    get_store().update("university_memberships", {"user_id": MAKSYM}, {"onboarded": False})
+    assert client.get("/api/billing", headers=as_user(MAKSYM)).json()["available"] == 0
+
+
+def test_beta_without_payments_hides_buying_and_explains(client, monkeypatch):
+    _settings(monkeypatch, free_generations=1, app_mode="supabase")  # прод: тестова оплата лише для модерації
+    b = client.get("/api/billing", headers=as_user(OLENA)).json()
+    assert b["payments_available"] is False and b["available"] == 1
+    client.post(f"/api/submissions/{SUB}/regenerate", headers=as_user(OLENA), json=OPTS)
+    r = client.post(f"/api/submissions/{SUB}/regenerate", headers=as_user(OLENA), json=OPTS)
+    assert r.status_code == 402 and "Оплата з'явиться незабаром" in r.json()["detail"]
