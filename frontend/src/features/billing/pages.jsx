@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, CreditCard, Crown, Loader2, Lock, RefreshCw, Wand2, XCircle } from "lucide-react";
+import { CheckCircle2, Copy, CreditCard, Crown, ExternalLink, Loader2, Lock, RefreshCw, Wand2, XCircle } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { local } from "../../lib/storage.js";
 import { timeAgo } from "../../lib/format.js";
@@ -158,6 +158,54 @@ export function MockCheckoutPage() {
 }
 
 // ---------- Повернення після оплати ----------
+// ---------- Оплата на monobank «Банку» з кодом у коментарі (PAYMENT_PROVIDER=jar) ----------
+export function JarPaymentPage() {
+  const { id } = useParams();
+  const nav = useNavigate();
+  const toast = useToast();
+  const p = useQuery({
+    queryKey: ["payment", id], queryFn: () => api(`/billing/payments/${id}`),
+    refetchInterval: (q) => (q.state.data?.status === "success" ? false : 5000),
+  });
+  const status = p.data?.status;
+  useEffect(() => {
+    if (status === "success") nav(`/billing/return/${id}`, { replace: true }); // далі — як після будь-якої оплати
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (p.isLoading) return <Loading />;
+  if (p.isError) return <ErrorState error={p.error} onRetry={p.refetch} />;
+  const x = p.data;
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(x.code); toast("Код скопійовано"); } catch { toast(x.code); }
+  };
+  return (
+    <>
+      <PageHeader back title="Оплата" subtitle="Переказ на monobank Банку" />
+      <div className="p-4 max-w-md mx-auto">
+        <div className="card p-5 space-y-4">
+          <div><div className="text-sm text-muted">{x.label}{x.quantity > 1 ? ` × ${x.quantity}` : ""}</div><div className="font-display text-4xl mt-1">{uah(x.amount_kop)}</div></div>
+          <div>
+            <div className="text-sm text-muted mb-1">Код оплати — обов'язково в коментарі до переказу</div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-2xl tracking-widest rounded-xl bg-sunken px-3 py-1.5 select-all" aria-label="Код оплати">{x.code}</span>
+              <button className="icon-btn" onClick={copy} aria-label="Скопіювати код"><Copy size={18} /></button>
+            </div>
+          </div>
+          <ol className="text-sm space-y-1.5 list-decimal pl-5">
+            <li>Натисніть «Оплатити на Банку» — сума й код уже підставлені.</li>
+            <li>Перевірте, що в коментарі є <b>{x.code}</b>, і підтвердіть переказ.</li>
+            <li>Поверніться сюди: генерації зарахуються автоматично, зазвичай протягом хвилини.</li>
+          </ol>
+          <a href={x.jar_url} target="_blank" rel="noopener noreferrer" className="btn-primary h-12 w-full"><ExternalLink size={16} /> Оплатити на Банку · {uah(x.amount_kop)}</a>
+          <div className="flex items-center justify-center gap-2 text-sm text-muted" role="status">
+            <Loader2 size={15} className="animate-spin" aria-hidden /> Очікуємо надходження…
+          </div>
+          <p className="text-xs text-muted">Переказали без коду або іншу суму? Напишіть у підтримку — зарахуємо вручну. <Link to="/offer" className="text-primary hover:underline">Умови оплати й повернення</Link></p>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function PaymentReturnPage() {
   const { id } = useParams();
   const nav = useNavigate();

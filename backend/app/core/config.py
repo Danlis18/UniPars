@@ -84,10 +84,22 @@ class Settings:
     legal_iban: str = ""        # необов'язково
     legal_phone: str = ""       # необов'язково
     support_email: str = ""     # пошта для звернень і повернень
+    # Оплата на monobank «Банку» (PAYMENT_PROVIDER=jar): особистий API monobank, без еквайрингу
+    mono_personal_token: str = ""   # api.monobank.ua → особистий токен (лише читання виписки)
+    mono_jar_id: str = ""           # id Банки для виписки (scripts/mono_jar_setup.py покаже)
+    mono_jar_url: str = ""          # публічне посилання на Банку: https://send.monobank.ua/jar/…
+    mono_webhook_secret: str = ""   # випадковий рядок у шляху webhook (від сторонніх запитів)
 
     @property
     def legal_ready(self) -> bool:
+        if self.payment_provider == "jar":  # продавець — фізична особа: ім'я й контакт для звернень
+            return bool(self.legal_name and self.support_email)
         return bool(self.legal_name and self.legal_tax_id and self.legal_address and self.support_email)
+
+    @property
+    def jar_ready(self) -> bool:
+        return bool(self.mono_personal_token and self.mono_jar_id and self.mono_jar_url.startswith("https://")
+                     and len(self.mono_webhook_secret) >= 16 and self.legal_ready)
 
     @property
     def is_demo(self) -> bool:
@@ -144,4 +156,8 @@ def get_settings() -> Settings:
         legal_iban=e("LEGAL_IBAN", "").strip(),
         legal_phone=e("LEGAL_PHONE", "").strip(),
         support_email=e("SUPPORT_EMAIL", "").strip(),
+        mono_personal_token=e("MONOBANK_PERSONAL_TOKEN", "").strip(),
+        mono_jar_id=e("MONO_JAR_ID", "").strip(),
+        mono_jar_url=e("MONO_JAR_URL", "").strip(),
+        mono_webhook_secret=e("MONO_WEBHOOK_SECRET", "").strip(),
     )

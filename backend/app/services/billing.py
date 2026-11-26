@@ -69,6 +69,8 @@ class BillingService:
         st = get_settings()
         if st.payment_provider == "monobank":
             return st.legal_ready
+        if st.payment_provider == "jar":
+            return st.jar_ready
         return self._mock_allowed()
 
     def balance(self) -> Row:
@@ -94,8 +96,10 @@ class BillingService:
 
     def checkout(self, kind: str, quantity: int = 1) -> Row:
         st = get_settings()
-        if st.payment_provider != "monobank" and not self._mock_allowed():
+        if st.payment_provider not in ("monobank", "jar") and not self._mock_allowed():
             raise HTTPException(503, "Оплата ще не підключена. Спробуйте трохи згодом.")
+        if st.payment_provider == "jar" and not st.jar_ready:
+            raise HTTPException(503, "Оплата тимчасово недоступна. Спробуйте трохи згодом.")
         if st.payment_provider == "monobank" and not st.legal_ready:
             # гроші приймаємо лише за опублікованою офертою з реквізитами продавця (LEGAL_* і SUPPORT_EMAIL)
             raise HTTPException(503, "Оплата тимчасово недоступна. Спробуйте трохи згодом.")
@@ -109,7 +113,12 @@ class BillingService:
         row = {"id": pid, "user_id": self.uid, "kind": kind, "quantity": quantity, "amount_kop": unit * quantity,
                "currency": "UAH", "status": "created", "provider": st.payment_provider, "invoice_id": None, "page_url": None,
                "failure_reason": None, "applied_at": None, "created_at": _iso(_now()), "updated_at": _iso(_now())}
-        if st.payment_provider == "monobank":
+        if st.payment_provider == "jar":
+            # переказ на Банку з кодом у коментарі; зарахування — за випискою (services/jar.py)
+            from app.services import jar
+
+            row.update(invoice_id=jar.new_code(self.s), page_url=f"/billing/pay/{pid}")
+        elif st.payment_provider == "monobank":
             webhook = f"{st.public_api_url}/api/billing/monobank/webhook" if st.public_api_url else None
             try:
                 inv = _monobank().create_invoice(
@@ -127,8 +136,13 @@ class BillingService:
 
     @staticmethod
     def _out(p: Row) -> Row:
-        return {k: p.get(k) for k in ("id", "kind", "quantity", "amount_kop", "currency", "status", "provider", "page_url",
-                                      "failure_reason", "created_at", "applied_at")} | {"label": KIND_LABEL.get(p["kind"], p["kind"])}
+        out = {k: p.get(k) for k in ("id", "kind", "quantity", "amount_kop", "currency", "status", "provider", "page_url",
+                                     "failure_reason", "created_at", "applied_at")} | {"label": KIND_LABEL.get(p["kind"], p["kind"])}
+        if p.get("provider") == "jar":
+            from app.services import jar
+
+            out |= {"code": p.get("invoice_id"), "jar_url": jar.pay_url(p["amount_kop"], p.get("invoice_id") or "")}
+        return out
 
     def _own_payment(self, payment_id: str) -> Row:
         p = self.s.get("payments", id=payment_id)
@@ -139,6 +153,14 @@ class BillingService:
     def payment(self, payment_id: str) -> Row:
         """Статус платежу (сторінка повернення після оплати). Для monobank — уточнюємо в банку, якщо webhook ще не прийшов."""
         p = self._own_payment(payment_id)
+        if p["provider"] == "jar" and p["status"] in ("created", "processing"):
+            from app.services import jar
+
+            try:
+                jar.sync(self.s)  # не частіше ліміту monobank; між запитами — лише зіставлення вже відомих надходжень
+                p = self.s.get("payments", id=payment_id)
+            except Exception:
+                pass
         if p["provider"] == "monobank" and p["status"] in ("created", "processing") and p.get("invoice_id"):
             try:
                 set_status(self.s, p, _monobank().invoice_status(p["invoice_id"]))
@@ -272,6 +294,8 @@ class RefundService:
             raise _refund_error(e) from e
         if pay["provider"] == "mock":
             r = self._finish(r, True)  # тестова оплата: грошей не було — повернення одразу успішне
+        elif pay["provider"] == "jar":
+            pass  # Банка: гроші повертає адміністратор переказом, потім позначає «Повернено» (complete)
         else:
             r = self._ask_bank(pay, r)
         return self._refund_out(r)
@@ -290,6 +314,36 @@ class RefundService:
             if status in ("success", "failure"):
                 r = self._finish(r, status == "success", "Банк відхилив повернення")
         return self._refund_out(r)
+
+    def complete(self, refund_id: str, success: bool) -> Row:
+        """Ручне завершення повернення для оплат на Банку: гроші переказано (або повернення скасовано)."""
+        r = self.s.get("refunds", id=refund_id)
+        if not r:
+            raise HTTPException(404, "Повернення не знайдено")
+        pay = self.s.get("payments", id=r["payment_id"])
+        if pay["provider"] != "jar":
+            raise HTTPException(400, "Вручну завершуються лише повернення оплат на Банку")
+        if r["status"] != "pending":
+            return self._refund_out(r)
+        return self._refund_out(self._finish(r, success, None if success else "Повернення скасовано адміністратором"))
+
+    def jar_transfers(self, unmatched_only: bool = True) -> list[Row]:
+        f = [("payment_id", "is_null", True)] if unmatched_only else []
+        return self.s.select("jar_transfers", f, order="received_at", desc=True, limit=100)
+
+    def jar_sync(self) -> Row:
+        from app.services import jar
+
+        try:
+            new = jar.sync(self.s, wait=False)
+        except Exception as e:
+            raise HTTPException(502, f"monobank: {str(e)[:200]}") from e
+        return {"new": new}
+
+    def jar_match(self, transfer_id: str, payment_id: str) -> Row:
+        from app.services import jar
+
+        return jar.manual_match(self.s, self.a.user_id, transfer_id, payment_id)
 
     def _ask_bank(self, pay: Row, r: Row) -> Row:
         from app.integrations.payments.monobank import MonobankRejected

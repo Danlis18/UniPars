@@ -11,7 +11,7 @@ import Onboarding from "../features/auth/Onboarding.jsx";
 import { HomePage, SavedPage } from "../features/feed/pages.jsx";
 import TaskPage from "../features/tasks/TaskPage.jsx";
 import { MySubmissionsPage } from "../features/tasks/SubmissionsPages.jsx";
-import { BillingPage, MockCheckoutPage, PaymentReturnPage, RegenerationPage } from "../features/billing/pages.jsx";
+import { BillingPage, JarPaymentPage, MockCheckoutPage, PaymentReturnPage, RegenerationPage } from "../features/billing/pages.jsx";
 import { SubjectPage, SubjectsPage } from "../features/subjects/pages.jsx";
 import PostPage from "../features/posts/PostPage.jsx";
 import { NotificationsPage, SettingsPage } from "../features/profile/pages.jsx";
@@ -85,6 +85,7 @@ const router = createBrowserRouter([
           { path: "/submissions", element: <MySubmissionsPage /> },
           { path: "/billing", element: <BillingPage /> },
           { path: "/billing/checkout/:id", element: <MockCheckoutPage /> },
+          { path: "/billing/pay/:id", element: <JarPaymentPage /> },
           { path: "/billing/return/:id", element: <PaymentReturnPage /> },
           { path: "/regenerations/:id", element: <RegenerationPage /> },
           // Старі розділи об'єднано з «Предметами»
