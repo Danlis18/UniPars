@@ -137,7 +137,7 @@ def _jar_secret_ok(secret: str) -> bool:
     from app.core.config import get_settings
 
     expected = get_settings().mono_webhook_secret
-    return bool(expected) and hmac.compare_digest(secret, expected)
+    return len(expected) >= 16 and hmac.compare_digest(secret, expected)
 
 
 @router.get("/billing/mono-jar/webhook/{secret}")

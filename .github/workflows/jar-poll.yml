@@ -1,0 +1,29 @@
+name: Jar payments poll
+
+# Оплата на monobank Банку без webhook (webhook на токен один і може бути зайнятий іншим сервісом):
+# раз на ~5 хвилин просимо backend перечитати виписку Банки — оплата зарахується, навіть якщо студент
+# закрив сторінку оплати. Між цим backend перечитує виписку, коли студент дивиться оплату чи баланс.
+#
+# Секрет JAR_POLL_URL = https://unipars-backend-production.up.railway.app/api/billing/mono-jar/webhook/<MONO_WEBHOOK_SECRET>
+# (той самий MONO_WEBHOOK_SECRET, що в Railway). Без секрету workflow нічого не робить.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      JAR_POLL_URL: ${{ secrets.JAR_POLL_URL }}
+    steps:
+      - name: Перечитати виписку Банки
+        if: env.JAR_POLL_URL != ''
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$JAR_POLL_URL" -H "Content-Type: application/json" -d '{}')
+          echo "HTTP $code"
+          [ "$code" = "200" ] || { echo "::error::Опитування не вдалося (HTTP $code): перевірте JAR_POLL_URL і MONO_WEBHOOK_SECRET"; exit 1; }

@@ -73,7 +73,22 @@ class BillingService:
             return st.jar_ready
         return self._mock_allowed()
 
+    def _sync_jar_if_waiting(self) -> None:
+        """Без webhook: якщо в користувача є неоплачений рахунок на Банку — перечитати виписку (з лімітом monobank)."""
+        st = get_settings()
+        if st.payment_provider != "jar" or not st.mono_personal_token:
+            return
+        if not self.s.select("payments", [("user_id", "eq", self.uid), ("provider", "eq", "jar"), ("status", "eq", "created")], limit=1):
+            return
+        from app.services import jar
+
+        try:
+            jar.sync(self.s)
+        except Exception:
+            pass  # monobank недоступний або ліміт — спробуємо під час наступного перегляду
+
     def balance(self) -> Row:
+        self._sync_jar_if_waiting()
         self._grant_welcome()
         b = self.s.rpc("billing_balance", {"p_user": self.uid})
         sub = b.get("subscription")
@@ -257,6 +272,13 @@ class RefundService:
         self.a = access
 
     def payments(self, status: str | None = "success", limit: int = 100) -> list[Row]:
+        if get_settings().payment_provider == "jar":
+            from app.services import jar
+
+            try:
+                jar.sync(self.s)
+            except Exception:
+                pass
         filters = [("status", "eq", status)] if status else []
         pays = self.s.select("payments", filters, order="created_at", desc=True, limit=limit)
         if not pays:

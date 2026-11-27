@@ -149,3 +149,18 @@ def test_round_amount_without_code_is_not_guessed(client, mono):
     jar.sync(__import__("app.core.deps", fromlist=["get_store"]).get_store())
     assert client.get("/api/billing", headers=as_user(OLENA)).json()["credits"] == 0
     assert {t["id"] for t in client.get("/api/admin/jar-transfers", headers=as_user(TARAS)).json()} == {"round"}
+
+
+def test_without_webhook_balance_view_credits_waiting_payment(client, mono, monkeypatch):
+    st = dataclasses.replace(jar.get_settings(), mono_webhook_secret="")  # webhook зайнятий іншим сервісом
+    for mod in (config, billing, jar):
+        monkeypatch.setattr(mod, "get_settings", lambda: st)
+    assert client.get("/api/billing", headers=as_user(OLENA)).json()["payments_available"] is True
+    p = checkout(client)
+    calls = mono.calls
+    mono.add(p["amount_kop"], "")  # студент заплатив і закрив сторінку оплати
+    b = client.get("/api/billing", headers=as_user(OLENA)).json()  # пізніше відкрив «Генерації»
+    assert b["credits"] == 1 and mono.calls == calls + 1
+    client.get("/api/billing", headers=as_user(OLENA))
+    assert mono.calls == calls + 1  # немає неоплачених рахунків — виписку не читаємо
+    assert client.post("/api/billing/mono-jar/webhook/anything").status_code == 404  # без секрету адреса вимкнена

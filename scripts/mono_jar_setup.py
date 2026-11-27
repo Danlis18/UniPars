@@ -7,7 +7,9 @@
   python scripts/mono_jar_setup.py jars
       — показує ваші Банки: id (→ MONO_JAR_ID), назву, баланс
   python scripts/mono_jar_setup.py webhook https://unipars-backend-production.up.railway.app <MONO_WEBHOOK_SECRET>
-      — вмикає webhook: monobank повідомлятиме backend про нові операції
+      — вмикає webhook: monobank повідомлятиме backend про нові операції.
+        УВАГА: webhook на токен один — команда замінить адресу, якщо webhook уже використовує інший сервіс.
+        Без webhook UniPars працює опитуванням виписки (docs/billing.md).
 
 monobank дозволяє ці запити не частіше 1 разу на 60 секунд.
 """
