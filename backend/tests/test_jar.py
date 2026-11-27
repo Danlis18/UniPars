@@ -36,7 +36,7 @@ def mono(monkeypatch):
         monkeypatch.setattr(mod, "get_settings", lambda: st)
     fake = FakeMono()
     monkeypatch.setattr(jar, "_client", lambda: fake)
-    monkeypatch.setattr(jar, "_last_fetch", 0.0)
+    monkeypatch.setattr(jar, "_last_fetch", float("-inf"))
     return fake
 
 
@@ -65,7 +65,7 @@ def test_transfer_with_code_credits_once(client, mono, monkeypatch):
     mono.add(p["amount_kop"], "за звіт " + p["code"].lower().replace("a", "а").replace("p", "р"))
     assert client.get(f"/api/billing/payments/{p['id']}", headers=as_user(OLENA)).json()["status"] == "success"
     assert client.get("/api/billing", headers=as_user(OLENA)).json()["credits"] == 2
-    monkeypatch.setattr(jar, "_last_fetch", 0.0)
+    monkeypatch.setattr(jar, "_last_fetch", float("-inf"))
     jar.sync(__import__("app.core.deps", fromlist=["get_store"]).get_store())  # повторне читання виписки
     assert client.get("/api/billing", headers=as_user(OLENA)).json()["credits"] == 2
 
@@ -87,7 +87,7 @@ def test_webhook_needs_secret_and_never_trusts_its_body(client, mono):
     # у справжній виписці такої операції немає — нічого не зараховано
     assert client.get("/api/billing", headers=as_user(OLENA)).json()["credits"] == 0
     mono.add(p["amount_kop"], p["code"])
-    jar._last_fetch = 0.0
+    jar._last_fetch = float("-inf")
     assert client.post(f"/api/billing/mono-jar/webhook/{SECRET}", json={}).status_code == 200
     assert client.get("/api/billing", headers=as_user(OLENA)).json()["credits"] == 1
 
@@ -164,3 +164,12 @@ def test_without_webhook_balance_view_credits_waiting_payment(client, mono, monk
     client.get("/api/billing", headers=as_user(OLENA))
     assert mono.calls == calls + 1  # немає неоплачених рахунків — виписку не читаємо
     assert client.post("/api/billing/mono-jar/webhook/anything").status_code == 404  # без секрету адреса вимкнена
+
+
+def test_first_statement_read_right_after_server_start(client, mono, monkeypatch):
+    # регресія: на щойно запущеному сервері time.monotonic() < 61 с — перше читання виписки не має блокуватися
+    monkeypatch.setattr(jar, "_last_fetch", float("-inf"))
+    monkeypatch.setattr(jar.time, "monotonic", lambda: 5.0)
+    p = checkout(client)
+    mono.add(p["amount_kop"], p["code"])
+    assert client.get(f"/api/billing/payments/{p['id']}", headers=as_user(OLENA)).json()["status"] == "success"
