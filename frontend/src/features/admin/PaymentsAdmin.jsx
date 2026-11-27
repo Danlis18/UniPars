@@ -4,10 +4,12 @@ import { RefreshCw, Undo2 } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { timeAgo } from "../../lib/format.js";
 import { Empty, ErrorState, Loading, Modal, useToast } from "../../components/ui.jsx";
+import { useSession } from "../../app/session.jsx";
 
 // Оплати й повернення коштів — лише адміністратор платформи (backend перевіряє кожен запит).
 const uah = (kop) => `${(kop / 100).toLocaleString("uk-UA", { maximumFractionDigits: 2 })} ₴`;
 const KIND = { single: "Разова генерація", topup: "Докупівля", subscription: "Підписка" };
+const PROVIDER = { mock: "тестова", monobank: "monobank", jar: "Банка" };
 const REFUND_STATUS = { pending: "в обробці", success: "повернено", failure: "відхилено" };
 const BLOCKED = {
   not_paid: "Платіж не оплачено.",
@@ -91,6 +93,62 @@ function RefundDialog({ payment, onClose }) {
   );
 }
 
+// Надходження на Банку, які не зіставились автоматично (без коду в коментарі або менша сума)
+function JarTransfers() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const list = useQuery({ queryKey: ["jar-transfers"], queryFn: () => api("/admin/jar-transfers") });
+  const unpaid = useQuery({ queryKey: ["admin-payments", "created"], queryFn: () => api("/admin/payments", { query: { status: "created" } }),
+    enabled: Boolean(list.data?.length) });
+  const [pick, setPick] = useState({});
+  const sync = async () => {
+    try {
+      const r = await api("/admin/jar-transfers/sync", { method: "POST" });
+      toast(r.new ? `Нових надходжень: ${r.new}` : "Виписку перевірено");
+      qc.invalidateQueries({ queryKey: ["jar-transfers"] });
+      qc.invalidateQueries({ queryKey: ["admin-payments"] });
+    } catch (e) { toast(e.message, "error"); }
+  };
+  const match = async (t) => {
+    try {
+      await api(`/admin/jar-transfers/${t.id}/match`, { method: "POST", body: { payment_id: pick[t.id] } });
+      toast("Оплату зараховано");
+      qc.invalidateQueries({ queryKey: ["jar-transfers"] });
+      qc.invalidateQueries({ queryKey: ["admin-payments"] });
+    } catch (e) { toast(e.message, "error"); }
+  };
+  const { config } = useSession();
+  if (list.isLoading || list.isError) return null;
+  if (config?.payment_provider !== "jar" && !list.data.length) return null; // оплата не через Банку — блок не потрібен
+  const jarUnpaid = (unpaid.data || []).filter((p) => p.provider === "jar");
+  return (
+    <section className="card p-4 text-sm space-y-2" aria-label="Надходження на Банку">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-display text-base">Надходження на Банку без зіставлення</h2>
+        <button className="btn-ghost h-8 px-3" onClick={sync}><RefreshCw size={14} /> Перевірити виписку</button>
+      </div>
+      {!list.data.length ? <p className="text-muted">Усі надходження зараховано.</p> : (
+        <ul className="divide-y divide-line">
+          {list.data.map((t) => (
+            <li key={t.id} className="py-2 flex flex-wrap items-center gap-2 justify-between">
+              <span className="min-w-0"><b>{uah(t.amount_kop)}</b> · {t.counter_name || "відправник"} · {timeAgo(t.received_at)}
+                <span className="block text-xs text-muted break-words">Коментар: {t.comment || "—"}</span></span>
+              <span className="flex items-center gap-2">
+                <select className="input h-9 max-w-[16rem]" value={pick[t.id] || ""} onChange={(e) => setPick({ ...pick, [t.id]: e.target.value })}
+                  aria-label="Платіж для зарахування">
+                  <option value="">Оберіть платіж…</option>
+                  {jarUnpaid.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.user.display_name} · {uah(p.amount_kop)}</option>)}
+                </select>
+                <button className="btn-primary h-9" disabled={!pick[t.id]} onClick={() => match(t)}>Зарахувати</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export default function PaymentsAdmin() {
   const qc = useQueryClient();
   const toast = useToast();
@@ -106,8 +164,17 @@ export default function PaymentsAdmin() {
     } catch (e) { toast(e.message, "error"); }
   };
 
+  const complete = async (refundId, success) => {
+    try {
+      const r = await api(`/admin/refunds/${refundId}/complete`, { method: "POST", body: { success } });
+      toast(`Повернення: ${REFUND_STATUS[r.status]}`);
+      qc.invalidateQueries({ queryKey: ["admin-payments"] });
+    } catch (e) { toast(e.message, "error"); }
+  };
+
   return (
     <div className="p-4 space-y-3">
+      <JarTransfers />
       <div className="flex items-center gap-2 text-sm">
         <span className="text-muted">Показати:</span>
         {[["success", "Оплачені"], ["all", "Усі"]].map(([v, l]) => (
@@ -123,7 +190,7 @@ export default function PaymentsAdmin() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="min-w-0">
                   <span className="block font-medium">{p.user.display_name}</span>
-                  <span className="block text-xs text-muted">{KIND[p.kind]}{p.quantity > 1 ? ` × ${p.quantity}` : ""} · {timeAgo(p.created_at)} · {p.provider === "mock" ? "тестова" : "monobank"}</span>
+                  <span className="block text-xs text-muted">{KIND[p.kind]}{p.quantity > 1 ? ` × ${p.quantity}` : ""} · {timeAgo(p.created_at)} · {PROVIDER[p.provider] || p.provider}{p.code ? ` · ${p.code}` : ""}</span>
                 </span>
                 <span className="flex items-center gap-3">
                   <span className="text-right"><b>{uah(p.amount_kop)}</b>{p.refunded_kop > 0 && <span className="block text-xs text-muted">повернено {uah(p.refunded_kop)}</span>}</span>
@@ -137,7 +204,12 @@ export default function PaymentsAdmin() {
                       <span className={r.status === "success" ? "text-primary" : r.status === "failure" ? "text-danger" : ""}>
                         {uah(r.amount_kop)} — {REFUND_STATUS[r.status]}{r.forced ? " (примусово)" : ""}</span>
                       <span>· {r.reason}{r.failure_reason ? ` · ${r.failure_reason}` : ""} · {timeAgo(r.created_at)}</span>
-                      {r.status === "pending" && <button className="btn-quiet h-7 px-2" onClick={() => refresh(r.id)}><RefreshCw size={13} /> Оновити</button>}
+                      {r.status === "pending" && p.provider === "jar" ? (
+                        <>
+                          <button className="btn-quiet h-7 px-2" onClick={() => complete(r.id, true)}>Гроші переказано</button>
+                          <button className="btn-quiet h-7 px-2" onClick={() => complete(r.id, false)}>Скасувати</button>
+                        </>
+                      ) : r.status === "pending" && <button className="btn-quiet h-7 px-2" onClick={() => refresh(r.id)}><RefreshCw size={13} /> Оновити</button>}
                     </li>
                   ))}
                 </ul>

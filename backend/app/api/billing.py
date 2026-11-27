@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.api.context import Ctx, ctx
@@ -28,6 +28,14 @@ class RefundRequest(BaseModel):
     generations: int | None = Field(default=None, ge=1, le=100)  # для підписки не потрібно — лише повністю
     reason: str = Field(min_length=3, max_length=500)
     force: bool = False  # подвійна оплата або результат не відповідає опису — без обмежень 14 днів/використання
+
+
+class RefundComplete(BaseModel):
+    success: bool = True
+
+
+class JarMatch(BaseModel):
+    payment_id: str
 
 
 class RegenerateOptions(BaseModel):
@@ -100,3 +108,52 @@ def create_refund(payment_id: str, data: RefundRequest, c: Ctx = Depends(ctx)):
 @router.post("/admin/refunds/{refund_id}/refresh")
 def refresh_refund(refund_id: str, c: Ctx = Depends(ctx)):
     return RefundService(c.store, c.access).refresh(refund_id)
+
+
+@router.post("/admin/refunds/{refund_id}/complete")
+def complete_refund(refund_id: str, data: RefundComplete, c: Ctx = Depends(ctx)):
+    return RefundService(c.store, c.access).complete(refund_id, data.success)
+
+
+# ---------- Оплата на Банку (PAYMENT_PROVIDER=jar) ----------
+@router.get("/admin/jar-transfers")
+def jar_transfers(all: bool = False, c: Ctx = Depends(ctx)):
+    return RefundService(c.store, c.access).jar_transfers(unmatched_only=not all)
+
+
+@router.post("/admin/jar-transfers/sync")
+def jar_sync(c: Ctx = Depends(ctx)):
+    return RefundService(c.store, c.access).jar_sync()
+
+
+@router.post("/admin/jar-transfers/{transfer_id}/match")
+def jar_match(transfer_id: str, data: JarMatch, c: Ctx = Depends(ctx)):
+    return RefundService(c.store, c.access).jar_match(transfer_id, data.payment_id)
+
+
+def _jar_secret_ok(secret: str) -> bool:
+    import hmac
+
+    from app.core.config import get_settings
+
+    expected = get_settings().mono_webhook_secret
+    return bool(expected) and hmac.compare_digest(secret, expected)
+
+
+@router.get("/billing/mono-jar/webhook/{secret}")
+def jar_webhook_check(secret: str):
+    """monobank перевіряє адресу webhook GET-запитом — відповідаємо 200."""
+    if not _jar_secret_ok(secret):
+        raise HTTPException(404, "Не знайдено")
+    return {"ok": True}
+
+
+@router.post("/billing/mono-jar/webhook/{secret}")
+def jar_webhook(secret: str, background: BackgroundTasks):
+    """Нова операція в monobank. Тілу не довіряємо (webhook не підписаний) — лише перечитуємо виписку у фоні."""
+    if not _jar_secret_ok(secret):
+        raise HTTPException(404, "Не знайдено")
+    from app.services import jar
+
+    background.add_task(jar.sync, get_store(), wait=True)
+    return {"ok": True}

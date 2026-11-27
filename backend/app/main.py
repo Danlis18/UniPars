@@ -63,7 +63,8 @@ def health(deep: bool = False):
         return {"ok": True}
     s = get_settings()
     out: dict = {"ok": True, "mode": s.app_mode, "ai_enabled": s.ai_enabled, "cors_origins": s.cors_origins,
-                 "payment_provider": s.payment_provider, "legal_ready": s.legal_ready}
+                 "payment_provider": s.payment_provider, "legal_ready": s.legal_ready,
+                 "jar_ready": s.jar_ready if s.payment_provider == "jar" else None}
     if s.is_demo:
         return out
     from urllib.parse import urlparse
@@ -81,7 +82,7 @@ def health(deep: bool = False):
     schema = {}
     for table in ("faculties", "programs", "study_groups", "subjects", "topics", "news_sources",
                   "follows", "dm_conversations", "dm_messages", "tasks", "task_files", "submissions",
-                  "payments", "subscriptions", "regenerations", "refunds"):
+                  "payments", "subscriptions", "regenerations", "refunds", "jar_transfers"):
         try:
             schema[table] = get_store().count(table)
         except Exception:
@@ -96,7 +97,8 @@ def health(deep: bool = False):
                             ("posts.task_id", "posts", "task_id"),
                             ("submissions.is_anonymous", "submissions", "is_anonymous"),
                             ("credit_ledger.pool", "credit_ledger", "pool"),
-                            ("subscriptions.canceled_at", "subscriptions", "canceled_at")):
+                            ("subscriptions.canceled_at", "subscriptions", "canceled_at"),
+                            ("payments.provider_ref", "payments", "provider_ref")):
         try:
             get_store().count(table, [(col, "is_null", False)])
             schema[key] = "ok"

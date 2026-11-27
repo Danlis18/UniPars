@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, CreditCard, Crown, Loader2, Lock, RefreshCw, Wand2, XCircle } from "lucide-react";
+import { CheckCircle2, Copy, CreditCard, Crown, ExternalLink, Loader2, Lock, RefreshCw, Wand2, XCircle } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { local } from "../../lib/storage.js";
 import { timeAgo } from "../../lib/format.js";
@@ -158,6 +158,60 @@ export function MockCheckoutPage() {
 }
 
 // ---------- Повернення після оплати ----------
+// ---------- Оплата на monobank «Банку» з кодом у коментарі (PAYMENT_PROVIDER=jar) ----------
+export function JarPaymentPage() {
+  const { id } = useParams();
+  const nav = useNavigate();
+  const toast = useToast();
+  const p = useQuery({
+    queryKey: ["payment", id], queryFn: () => api(`/billing/payments/${id}`),
+    refetchInterval: (q) => (q.state.data?.status === "success" ? false : 5000),
+  });
+  const status = p.data?.status;
+  useEffect(() => {
+    if (status === "success") nav(`/billing/return/${id}`, { replace: true }); // далі — як після будь-якої оплати
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (p.isLoading) return <Loading />;
+  if (p.isError) return <ErrorState error={p.error} onRetry={p.refetch} />;
+  const x = p.data;
+  const copy = async (text, what) => {
+    try { await navigator.clipboard.writeText(text); toast(`${what} скопійовано`); } catch { toast(text); }
+  };
+  const exact = (x.amount_kop / 100).toFixed(2).replace(".", ",");
+  const Row = ({ label, value, copyText, what, mono = true }) => (
+    <div>
+      <div className="text-sm text-muted mb-1">{label}</div>
+      <div className="flex items-center gap-2">
+        <span className={`${mono ? "font-mono sm:tracking-wider" : "font-display"} text-lg sm:text-2xl whitespace-nowrap rounded-xl bg-sunken px-3 py-1.5 select-all`}>{value}</span>
+        <button className="icon-btn" onClick={() => copy(copyText, what)} aria-label={`Скопіювати: ${what.toLowerCase()}`}><Copy size={18} /></button>
+      </div>
+    </div>
+  );
+  return (
+    <>
+      <PageHeader back title="Оплата" subtitle="Переказ на картку monobank Банки" />
+      <div className="p-4 max-w-md mx-auto">
+        <div className="card p-5 space-y-4">
+          <div className="text-sm text-muted">{x.label}{x.quantity > 1 ? ` × ${x.quantity}` : ""}</div>
+          <Row label="Сума — рівно така, з копійками" value={`${exact} ₴`} copyText={exact} what="Суму" mono={false} />
+          {x.jar_card && <Row label="Номер картки Банки" value={x.jar_card} copyText={x.jar_card.replace(/ /g, "")} what="Номер картки" />}
+          <Row label="Коментар до переказу (якщо ваш банк дозволяє)" value={x.code} copyText={x.code} what="Код" />
+          <ol className="text-sm space-y-1.5 list-decimal pl-5">
+            <li>У застосунку свого банку оберіть переказ на картку й вставте номер.</li>
+            <li>Введіть <b>точну суму {exact} ₴</b> — за копійками ми впізнаємо саме вашу оплату. Якщо є поле коментаря, додайте <b>{x.code}</b>.</li>
+            <li>Поверніться сюди: генерації зарахуються автоматично, зазвичай протягом хвилини.</li>
+          </ol>
+          {x.jar_url && <a href={x.jar_url} target="_blank" rel="noopener noreferrer" className="btn-ghost w-full"><ExternalLink size={16} /> Або відкрити сторінку Банки</a>}
+          <div className="flex items-center justify-center gap-2 text-sm text-muted" role="status">
+            <Loader2 size={15} className="animate-spin" aria-hidden /> Очікуємо надходження…
+          </div>
+          <p className="text-xs text-muted">Переказали іншу суму, а генерацій немає? Напишіть у підтримку — зарахуємо вручну. <Link to="/offer" className="text-primary hover:underline">Умови оплати й повернення</Link></p>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function PaymentReturnPage() {
   const { id } = useParams();
   const nav = useNavigate();
