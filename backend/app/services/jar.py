@@ -1,9 +1,12 @@
-"""Оплата на monobank «Банку» з кодом у коментарі (PAYMENT_PROVIDER=jar).
+"""Оплата на monobank «Банку» за номером картки (PAYMENT_PROVIDER=jar).
 
-1. checkout видає код (UP-7K3QX) і посилання на Банку з сумою;
-2. студент переказує гроші, вписавши код у коментар;
+1. checkout видає номер картки Банки, код (UP-7K3QX) і унікальну суму — на кілька копійок меншу за ціну
+   (46,73 ₴ замість 47 ₴): переказ з іншого банку часто приходить без коментаря, і тоді оплату
+   впізнаємо за точною сумою;
+2. студент переказує гроші на картку, за можливості — з кодом у коментарі;
 3. monobank надсилає webhook → backend сам читає виписку Банки (тілу webhook не довіряємо),
-   записує кожне надходження в jar_transfers і зараховує оплату, якщо код збігся, а суми досить
+   записує кожне надходження в jar_transfers і зараховує оплату: за кодом (якщо суми досить)
+   або, якщо коду немає, за точною сумою, коли вона належить рівно одному очікуваному платежу
    (billing_set_status — рівно один раз; одна транзакція банку — один платіж);
 4. надходження без коду чи з меншою сумою адміністратор зіставляє вручну (Керування → Оплати).
 
@@ -51,6 +54,22 @@ _LOOKALIKE = str.maketrans("АВЕКМНОРСТХУІ", "ABEKMHOPCTXYI")
 def find_code(comment: str | None) -> str | None:
     m = CODE_RE.search((comment or "").upper().translate(_LOOKALIKE))
     return f"UP-{m.group(1)}" if m else None
+
+
+def card_number() -> str:
+    d = get_settings().jar_card_digits
+    return " ".join(d[i:i + 4] for i in range(0, len(d), 4)) if len(d) == 16 else ""
+
+
+def unique_amount(store: Store, base_kop: int) -> int:
+    """Сума на 1–99 копійок менша за ціну, якої ще немає серед неоплачених платежів на Банку за останні 3 доби."""
+    since = datetime.fromtimestamp(time.time() - LOOKBACK, timezone.utc).isoformat()
+    taken = {p["amount_kop"] for p in store.select("payments", [("provider", "eq", "jar"), ("status", "eq", "created"),
+                                                                ("created_at", "gte", since)])}
+    free = [base_kop - k for k in range(1, 100) if base_kop - k not in taken]
+    if not free:
+        raise HTTPException(503, "Забагато неоплачених рахунків. Спробуйте за кілька хвилин.")
+    return secrets.choice(free)
 
 
 def pay_url(amount_kop: int, code: str) -> str:
@@ -112,20 +131,34 @@ def _link(store: Store, transfer: Row, payment: Row, admin_id: str | None) -> bo
     return True
 
 
+def _by_code(store: Store, t: Row) -> Row | None:
+    code = find_code(t.get("comment"))
+    if not code:
+        return None
+    rows = store.select("payments", [("invoice_id", "eq", code), ("provider", "eq", "jar")], limit=1)
+    p = rows[0] if rows else None
+    if not p or p["status"] == "success" or p.get("provider_ref") or t["amount_kop"] < p["amount_kop"]:
+        return None  # уже оплачено або сума менша — вирішує адміністратор
+    return p
+
+
+def _by_amount(store: Store, t: Row) -> Row | None:
+    """Без коду — за точною сумою: лише якщо її має рівно один неоплачений платіж, створений до переказу (за 3 доби)."""
+    received = datetime.fromisoformat(t["received_at"])
+    since = (received.timestamp() - LOOKBACK)
+    rows = [p for p in store.select("payments", [("provider", "eq", "jar"), ("amount_kop", "eq", t["amount_kop"])])
+            if p["status"] != "success" and not p.get("provider_ref")
+            and since <= datetime.fromisoformat(str(p["created_at"])).timestamp() <= received.timestamp() + 300]
+    return rows[0] if len(rows) == 1 else None
+
+
 def match_pending(store: Store) -> int:
-    """Зарахувати оплати для надходжень, де в коментарі є код, а суми досить."""
+    """Зарахувати оплати для нових надходжень: за кодом у коментарі, інакше — за унікальною точною сумою."""
     done = 0
     for t in store.select("jar_transfers", [("payment_id", "is_null", True)], order="received_at"):
-        code = find_code(t.get("comment"))
-        if not code:
-            continue
-        rows = store.select("payments", [("invoice_id", "eq", code), ("provider", "eq", "jar")], limit=1)
-        if not rows:
-            continue
-        p = rows[0]
-        if p["status"] == "success" or p.get("provider_ref") or t["amount_kop"] < p["amount_kop"]:
-            continue  # уже оплачено або сума менша — вирішує адміністратор
-        done += _link(store, t, p, None)
+        p = _by_code(store, t) or _by_amount(store, t)
+        if p:
+            done += _link(store, t, p, None)
     return done
 
 

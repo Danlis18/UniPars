@@ -174,32 +174,38 @@ export function JarPaymentPage() {
   if (p.isLoading) return <Loading />;
   if (p.isError) return <ErrorState error={p.error} onRetry={p.refetch} />;
   const x = p.data;
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(x.code); toast("Код скопійовано"); } catch { toast(x.code); }
+  const copy = async (text, what) => {
+    try { await navigator.clipboard.writeText(text); toast(`${what} скопійовано`); } catch { toast(text); }
   };
+  const exact = (x.amount_kop / 100).toFixed(2).replace(".", ",");
+  const Row = ({ label, value, copyText, what, mono = true }) => (
+    <div>
+      <div className="text-sm text-muted mb-1">{label}</div>
+      <div className="flex items-center gap-2">
+        <span className={`${mono ? "font-mono sm:tracking-wider" : "font-display"} text-lg sm:text-2xl whitespace-nowrap rounded-xl bg-sunken px-3 py-1.5 select-all`}>{value}</span>
+        <button className="icon-btn" onClick={() => copy(copyText, what)} aria-label={`Скопіювати: ${what.toLowerCase()}`}><Copy size={18} /></button>
+      </div>
+    </div>
+  );
   return (
     <>
-      <PageHeader back title="Оплата" subtitle="Переказ на monobank Банку" />
+      <PageHeader back title="Оплата" subtitle="Переказ на картку monobank Банки" />
       <div className="p-4 max-w-md mx-auto">
         <div className="card p-5 space-y-4">
-          <div><div className="text-sm text-muted">{x.label}{x.quantity > 1 ? ` × ${x.quantity}` : ""}</div><div className="font-display text-4xl mt-1">{uah(x.amount_kop)}</div></div>
-          <div>
-            <div className="text-sm text-muted mb-1">Код оплати — обов'язково в коментарі до переказу</div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-2xl tracking-widest rounded-xl bg-sunken px-3 py-1.5 select-all" aria-label="Код оплати">{x.code}</span>
-              <button className="icon-btn" onClick={copy} aria-label="Скопіювати код"><Copy size={18} /></button>
-            </div>
-          </div>
+          <div className="text-sm text-muted">{x.label}{x.quantity > 1 ? ` × ${x.quantity}` : ""}</div>
+          <Row label="Сума — рівно така, з копійками" value={`${exact} ₴`} copyText={exact} what="Суму" mono={false} />
+          {x.jar_card && <Row label="Номер картки Банки" value={x.jar_card} copyText={x.jar_card.replace(/ /g, "")} what="Номер картки" />}
+          <Row label="Коментар до переказу (якщо ваш банк дозволяє)" value={x.code} copyText={x.code} what="Код" />
           <ol className="text-sm space-y-1.5 list-decimal pl-5">
-            <li>Натисніть «Оплатити на Банку» — сума й код уже підставлені.</li>
-            <li>Перевірте, що в коментарі є <b>{x.code}</b>, і підтвердіть переказ.</li>
+            <li>У застосунку свого банку оберіть переказ на картку й вставте номер.</li>
+            <li>Введіть <b>точну суму {exact} ₴</b> — за копійками ми впізнаємо саме вашу оплату. Якщо є поле коментаря, додайте <b>{x.code}</b>.</li>
             <li>Поверніться сюди: генерації зарахуються автоматично, зазвичай протягом хвилини.</li>
           </ol>
-          <a href={x.jar_url} target="_blank" rel="noopener noreferrer" className="btn-primary h-12 w-full"><ExternalLink size={16} /> Оплатити на Банку · {uah(x.amount_kop)}</a>
+          {x.jar_url && <a href={x.jar_url} target="_blank" rel="noopener noreferrer" className="btn-ghost w-full"><ExternalLink size={16} /> Або відкрити сторінку Банки</a>}
           <div className="flex items-center justify-center gap-2 text-sm text-muted" role="status">
             <Loader2 size={15} className="animate-spin" aria-hidden /> Очікуємо надходження…
           </div>
-          <p className="text-xs text-muted">Переказали без коду або іншу суму? Напишіть у підтримку — зарахуємо вручну. <Link to="/offer" className="text-primary hover:underline">Умови оплати й повернення</Link></p>
+          <p className="text-xs text-muted">Переказали іншу суму, а генерацій немає? Напишіть у підтримку — зарахуємо вручну. <Link to="/offer" className="text-primary hover:underline">Умови оплати й повернення</Link></p>
         </div>
       </div>
     </>

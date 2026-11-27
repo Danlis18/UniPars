@@ -117,7 +117,10 @@ class BillingService:
             # переказ на Банку з кодом у коментарі; зарахування — за випискою (services/jar.py)
             from app.services import jar
 
-            row.update(invoice_id=jar.new_code(self.s), page_url=f"/billing/pay/{pid}")
+            # унікальна сума (мінус кілька копійок): переказ за номером картки з іншого банку приходить без коментаря,
+            # тоді оплату впізнаємо за точною сумою
+            row.update(invoice_id=jar.new_code(self.s), page_url=f"/billing/pay/{pid}",
+                       amount_kop=jar.unique_amount(self.s, row["amount_kop"]))
         elif st.payment_provider == "monobank":
             webhook = f"{st.public_api_url}/api/billing/monobank/webhook" if st.public_api_url else None
             try:
@@ -141,7 +144,8 @@ class BillingService:
         if p.get("provider") == "jar":
             from app.services import jar
 
-            out |= {"code": p.get("invoice_id"), "jar_url": jar.pay_url(p["amount_kop"], p.get("invoice_id") or "")}
+            out |= {"code": p.get("invoice_id"), "jar_card": jar.card_number(),
+                    "jar_url": jar.pay_url(p["amount_kop"], p.get("invoice_id") or "") if get_settings().mono_jar_url else None}
         return out
 
     def _own_payment(self, payment_id: str) -> Row:
