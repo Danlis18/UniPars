@@ -4,6 +4,7 @@ from pathlib import Path
 
 os.environ["APP_MODE"] = "demo"
 os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["FREE_GENERATIONS"] = "0"  # більшість сценаріїв — без стартових генерацій; бета перевіряється окремо
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest

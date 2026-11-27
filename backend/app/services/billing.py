@@ -54,13 +54,32 @@ class BillingService:
     def active_subscription(self) -> Row | None:
         return self.s.rpc("billing_balance", {"p_user": self.uid}).get("subscription")
 
+    def _grant_welcome(self) -> None:
+        """Бета: безкоштовні генерації — один раз кожному, хто вже приєднався до університету
+        (пройшов онбординг із підтвердженою поштою), щоб голі реєстрації не роздували витрати на AI."""
+        n = get_settings().free_generations
+        if n <= 0 or getattr(self, "_welcome_checked", False):
+            return
+        self._welcome_checked = True
+        if any(m.get("onboarded") for m in self.s.select("university_memberships", [("user_id", "eq", self.uid)])):
+            self.s.rpc("billing_grant_welcome", {"p_user": self.uid, "p_amount": n})
+
+    def payments_available(self) -> bool:
+        """Чи може цей користувач оплатити: справжня оплата з опублікованими реквізитами або тестова (демо/модерація)."""
+        st = get_settings()
+        if st.payment_provider == "monobank":
+            return st.legal_ready
+        return self._mock_allowed()
+
     def balance(self) -> Row:
+        self._grant_welcome()
         b = self.s.rpc("billing_balance", {"p_user": self.uid})
         sub = b.get("subscription")
         left = sub["credits_left"] if sub else 0
         return {"credits": b["credits"], "subscription": ({"period_end": sub["period_end"], "credits_left": left,
                                                          "credits_included": sub["credits_included"]} if sub else None),
-                "available": b["credits"] + left, "prices": self.prices()}
+                "available": b["credits"] + left, "prices": self.prices(),
+                "payments_available": self.payments_available(), "free_generations": get_settings().free_generations}
 
     # ---------- Оформлення оплати ----------
     def _mock_allowed(self) -> bool:
@@ -147,11 +166,13 @@ class BillingService:
     # ---------- Списання й повернення ----------
     def consume(self, regeneration_id: str) -> str:
         """Списує одну генерацію (спершу з підписки). Повертає гаманець: 'subscription' або 'credits'."""
+        self._grant_welcome()
         try:
             return self.s.rpc("billing_consume", {"p_user": self.uid, "p_regeneration": regeneration_id})
         except RpcError as e:
             if "no_credits" in str(e):
-                raise HTTPException(402, "Немає доступних генерацій. Оплатіть генерацію або оформіть підписку.") from e
+                raise HTTPException(402, "Немає доступних генерацій. Оплатіть генерацію або оформіть підписку."
+                                    if self.payments_available() else "Безкоштовні генерації закінчились. Оплата з'явиться незабаром.") from e
             raise
 
     def refund(self, source: str, regeneration_id: str) -> None:

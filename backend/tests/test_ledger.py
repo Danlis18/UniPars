@@ -22,6 +22,7 @@ MIGRATIONS = Path(__file__).resolve().parents[2] / "supabase" / "migrations"
 BILLING_SQL = MIGRATIONS / "20261121000013_billing_and_regeneration.sql"
 LEDGER_SQL = MIGRATIONS / "20261124000014_billing_ledger_balance.sql"
 REFUNDS_SQL = MIGRATIONS / "20261125000015_payment_refunds.sql"
+WELCOME_SQL = MIGRATIONS / "20261126000016_welcome_generations.sql"
 PG_URL = os.environ.get("TEST_DATABASE_URL")
 
 # Мінімальне оточення Supabase, від якого залежать міграції оплати (ролі, auth.uid, батьківські таблиці)
@@ -113,6 +114,7 @@ def _pg_schema(apply_ledger: bool = True):
         if apply_ledger:
             c.execute(LEDGER_SQL.read_text(encoding="utf-8"))
             c.execute(REFUNDS_SQL.read_text(encoding="utf-8"))
+            c.execute(WELCOME_SQL.read_text(encoding="utf-8"))
     return schema
 
 
@@ -474,4 +476,17 @@ def test_refund_of_renewal_shortens_period_and_failure_restores_it(db):
     b = balance(db, uid)["subscription"]
     assert b["credits_left"] == 30 and b["credits_included"] == 30
     assert datetime.fromisoformat(b["period_end"]) - datetime.fromisoformat(first_end) == timedelta(days=30)
+    assert_cache_matches_ledger(db, uid)
+
+
+# ---------- Безкоштовні генерації на старт (міграція 16) ----------
+def test_welcome_generations_granted_exactly_once(db):
+    uid = user(db)
+    results = _parallel(db, 6, lambda s: s.rpc("billing_grant_welcome", {"p_user": uid, "p_amount": 3}))
+    assert results.count(True) == 1 and results.count(False) == 5, results
+    assert balance(db, uid)["credits"] == 3
+    assert db.rpc("billing_grant_welcome", {"p_user": uid, "p_amount": 0}) is False
+    assert [consume(db, uid) for _ in range(3)] == ["credits"] * 3
+    with pytest.raises(RpcError, match="no_credits"):
+        consume(db, uid)
     assert_cache_matches_ledger(db, uid)

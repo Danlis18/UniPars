@@ -31,7 +31,7 @@ export default defineConfig({
     {
       command: `${python} -m uvicorn app.main:app --app-dir "${backendDir}" --port ${API_PORT}`,
       url: `http://127.0.0.1:${API_PORT}/api/health`,
-      env: { APP_MODE: "demo", ANTHROPIC_API_KEY: "", CORS_ORIGINS: `http://localhost:${WEB_PORT}` },
+      env: { APP_MODE: "demo", ANTHROPIC_API_KEY: "", FREE_GENERATIONS: "0", CORS_ORIGINS: `http://localhost:${WEB_PORT}` },
       reuseExistingServer: false,
       timeout: 60_000,
     },

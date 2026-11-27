@@ -76,6 +76,7 @@ class Settings:
     price_subscription_kop: int = 35000  # підписка — 350 ₴ / 30 днів
     subscription_credits: int = 15
     price_topup_kop: int = 1800          # докупівля понад підписку — 18 ₴ за генерацію
+    free_generations: int = 3            # бета: безкоштовні генерації кожному користувачу (один раз); 0 — вимкнено
     # Реквізити продавця для публічної оферти (/offer). Без назви й коду справжня оплата не приймається.
     legal_name: str = ""        # напр. «ФОП Прізвище Ім'я По батькові»
     legal_tax_id: str = ""      # РНОКПП (ІПН) ФОП або код ЄДРПОУ
@@ -136,6 +137,7 @@ def get_settings() -> Settings:
         price_subscription_kop=_int("PRICE_SUBSCRIPTION_KOP", 35000),
         subscription_credits=_int("SUBSCRIPTION_CREDITS", 15),
         price_topup_kop=_int("PRICE_TOPUP_KOP", 1800),
+        free_generations=_int("FREE_GENERATIONS", 3),
         legal_name=e("LEGAL_NAME", "").strip(),
         legal_tax_id=e("LEGAL_TAX_ID", "").strip(),
         legal_address=e("LEGAL_ADDRESS", "").strip(),
