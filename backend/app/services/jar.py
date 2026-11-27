@@ -31,7 +31,7 @@ MIN_INTERVAL = 61  # секунд між запитами виписки (лім
 LOOKBACK = 3 * 86400  # виписку беремо за 3 доби: webhook міг загубитися
 
 _lock = threading.Lock()
-_last_fetch = 0.0
+_last_fetch = float("-inf")  # «ще не читали»: не 0.0 — time.monotonic() на щойно запущеному сервері може бути < 61 с
 
 
 def _client():
