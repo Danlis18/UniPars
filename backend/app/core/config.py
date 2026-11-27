@@ -89,7 +89,7 @@ class Settings:
     mono_jar_id: str = ""           # id Банки для виписки (scripts/mono_jar_setup.py покаже)
     mono_jar_url: str = ""          # публічне посилання на Банку: https://send.monobank.ua/jar/… (необов'язково)
     mono_jar_card: str = ""         # номер картки Банки (16 цифр) — основний спосіб оплати
-    mono_webhook_secret: str = ""   # випадковий рядок у шляху webhook (від сторонніх запитів)
+    mono_webhook_secret: str = ""   # секрет у шляху webhook/опитування (≥ 16 символів); без нього адреса вимкнена
 
     @property
     def legal_ready(self) -> bool:
@@ -100,8 +100,9 @@ class Settings:
     @property
     def jar_ready(self) -> bool:
         has_target = len(self.jar_card_digits) == 16 or self.mono_jar_url.startswith("https://")
-        return bool(self.mono_personal_token and self.mono_jar_id and has_target
-                    and len(self.mono_webhook_secret) >= 16 and self.legal_ready)
+        # webhook необов'язковий: у monobank він один на токен і може бути зайнятий іншим сервісом —
+        # тоді виписка перечитується під час перегляду оплати/балансу і за розкладом (.github/workflows/jar-poll.yml)
+        return bool(self.mono_personal_token and self.mono_jar_id and has_target and self.legal_ready)
 
     @property
     def jar_card_digits(self) -> str:
