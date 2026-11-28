@@ -19,7 +19,7 @@ DEFAULT_FRONTEND = "https://unipars-frontend-production.up.railway.app"
 DEFAULT_BACKEND = "https://unipars-backend-production.up.railway.app"
 EXPECTED_TABLES = ["faculties", "programs", "study_groups", "subjects", "topics", "news_sources",
                    "follows", "dm_conversations", "dm_messages", "tasks", "task_files", "submissions",
-                   "payments", "subscriptions", "regenerations", "refunds", "jar_transfers"]
+                   "payments", "subscriptions", "regenerations", "refunds", "jar_transfers", "push_subscriptions"]
 
 
 def fetch(url: str, method: str = "GET", headers: dict | None = None, timeout: int = 30):
@@ -65,6 +65,8 @@ def main() -> int:
         missing.append("повернення коштів (міграція 15)")
     if schema.get("payments.provider_ref") != "ok":
         missing.append("оплата на Банку (міграція 17)")
+    if schema.get("subscriptions.reminded_period_end") != "ok":
+        missing.append("push і нагадування (міграція 18)")
     check(not missing, "міграції застосовані" + (f" — бракує: {', '.join(missing)}" if missing else f" ({schema})"))
     # Швидкість: простий health не ходить у базу — показує мережеву затримку до backend
     times = [fetch(f"{be}/api/health")[3] for _ in range(3)]

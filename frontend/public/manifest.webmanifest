@@ -1,0 +1,10 @@
+{
+  "name": "UniPars — платформа взаємодопомоги студентів",
+  "short_name": "UniPars",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1412",
+  "theme_color": "#0d1412",
+  "lang": "uk",
+  "icons": [{ "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

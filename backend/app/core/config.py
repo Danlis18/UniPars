@@ -89,6 +89,9 @@ class Settings:
     mono_jar_id: str = ""           # id Банки для виписки (scripts/mono_jar_setup.py покаже)
     mono_jar_url: str = ""          # публічне посилання на Банку: https://send.monobank.ua/jar/… (необов'язково)
     mono_jar_card: str = ""         # номер картки Банки (16 цифр) — основний спосіб оплати
+    vapid_public_key: str = ""      # Web Push (scripts/gen_vapid_keys.py); без ключів push вимкнено
+    vapid_private_key: str = ""
+    cron_secret: str = ""           # секрет для запусків за розкладом (нагадування), ≥ 16 символів
     mono_webhook_secret: str = ""   # секрет у шляху webhook/опитування (≥ 16 символів); без нього адреса вимкнена
 
     @property
@@ -168,4 +171,7 @@ def get_settings() -> Settings:
         mono_jar_url=e("MONO_JAR_URL", "").strip(),
         mono_jar_card=e("MONO_JAR_CARD", "").strip(),
         mono_webhook_secret=e("MONO_WEBHOOK_SECRET", "").strip(),
+        vapid_public_key=e("VAPID_PUBLIC_KEY", "").strip(),
+        vapid_private_key=e("VAPID_PRIVATE_KEY", "").strip(),
+        cron_secret=e("CRON_SECRET", "").strip(),
     )

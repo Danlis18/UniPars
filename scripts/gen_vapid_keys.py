@@ -1,0 +1,22 @@
+"""Ключі VAPID для Web Push (один раз). Вивід — значення для Railway (backend):
+  VAPID_PUBLIC_KEY  — публічний, віддається браузерам;
+  VAPID_PRIVATE_KEY — секрет: лише в Railway, нікуди не комітити й не пересилати.
+
+  python scripts/gen_vapid_keys.py
+Заміна ключів робить недійсними всі наявні підписки браузерів (користувачі ввімкнуть push заново).
+"""
+import base64
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+
+
+def b64url(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+key = ec.generate_private_key(ec.SECP256R1())
+private = key.private_numbers().private_value.to_bytes(32, "big")
+public = key.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+print(f"VAPID_PUBLIC_KEY={b64url(public)}")
+print(f"VAPID_PRIVATE_KEY={b64url(private)}")

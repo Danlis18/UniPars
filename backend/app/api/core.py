@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from app.api.context import Ctx, ctx
@@ -30,6 +30,7 @@ def config():
            "prices": {"single_kop": s.price_single_kop, "subscription_kop": s.price_subscription_kop,
                       "subscription_credits": s.subscription_credits, "topup_kop": s.price_topup_kop, "currency": "UAH"},
            "payment_provider": s.payment_provider,
+           "vapid_public_key": s.vapid_public_key or None,  # публічний ключ Web Push (не секрет)
            "legal": {"name": s.legal_name, "tax_id": s.legal_tax_id, "address": s.legal_address, "iban": s.legal_iban,
                      "phone": s.legal_phone, "email": s.support_email, "ready": s.legal_ready}}
     if s.is_demo and os.environ.get("DEMO_SEED") == "showcase":
@@ -148,6 +149,45 @@ def set_subscriptions(data: SubscriptionsSet, c: Ctx = Depends(ctx), uni: str = 
 @router.get("/notifications")
 def list_notifications(c: Ctx = Depends(ctx)):
     return notifications.list_for(c.store, c.user.id)
+
+
+class PushSubscription(BaseModel):
+    endpoint: str
+    keys: dict
+
+
+class PushEndpoint(BaseModel):
+    endpoint: str
+
+
+@router.post("/push/subscriptions")
+def push_subscribe(data: PushSubscription, request: Request, c: Ctx = Depends(ctx)):
+    from app.services import push
+
+    p256dh, auth = str(data.keys.get("p256dh", "")), str(data.keys.get("auth", ""))
+    if not p256dh or not auth or len(data.endpoint) > 1000:
+        raise HTTPException(400, "Неповна підписка браузера")
+    return push.subscribe(c.store, c.user.id, data.endpoint, p256dh, auth, request.headers.get("user-agent"))
+
+
+@router.post("/push/unsubscribe")
+def push_unsubscribe(data: PushEndpoint, c: Ctx = Depends(ctx)):
+    from app.services import push
+
+    return push.unsubscribe(c.store, c.user.id, data.endpoint)
+
+
+@router.post("/internal/subscription-reminders")
+def subscription_reminders(x_cron_secret: str = Header(default="")):
+    """Запуск за розкладом (.github/workflows/reminders.yml). Без правильного секрету — 404."""
+    import hmac
+
+    from app.services.reminders import subscription_reminders as run
+
+    secret = get_settings().cron_secret
+    if len(secret) < 16 or not hmac.compare_digest(x_cron_secret, secret):
+        raise HTTPException(404, "Не знайдено")
+    return run(get_store())
 
 
 @router.post("/notifications/read")

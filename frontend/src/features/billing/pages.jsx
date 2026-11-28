@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import PushToggle from "../../components/PushToggle.jsx";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy, CreditCard, Crown, ExternalLink, Loader2, Lock, RefreshCw, Wand2, XCircle } from "lucide-react";
@@ -295,6 +296,7 @@ export function BillingPage() {
                   <button className="btn-primary h-9" onClick={() => checkout("topup", qty)}>Докупити за {uah(b.prices.topup_kop * qty)}</button>
                 </div>
                 <button className="btn-quiet h-8 px-2 mt-2 text-xs" onClick={() => checkout("subscription")}>Продовжити ще на 30 днів · {uah(b.prices.subscription_kop)}</button>
+                <PushToggle compact />
               </>
             ) : (
               <>

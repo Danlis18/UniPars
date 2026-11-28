@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PushToggle from "../../components/PushToggle.jsx";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, CheckCheck, LogOut, Monitor, Moon, Sun } from "lucide-react";
@@ -32,6 +33,7 @@ export function NotificationsPage() {
   return (
     <>
       <PageHeader title="Сповіщення" actions={n.data?.unread ? <button className="btn-ghost h-9" onClick={() => readAll.mutate()}><CheckCheck size={16} /> Прочитати всі</button> : null} />
+      <PushToggle />
       {n.isLoading ? <Loading /> : n.isError ? <ErrorState error={n.error} onRetry={n.refetch} /> : !n.data.items.length ? (
         <Empty title="Сповіщень немає" icon={Bell}>Тут з'являться відповіді на ваші дописи, прийняті відповіді та важливі оновлення.</Empty>
       ) : (

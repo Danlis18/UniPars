@@ -9,3 +9,4 @@ supabase>=2.6
 pytest>=8.0
 Pillow>=10.4
 pypdf>=5.0
+pywebpush>=2.0,<3
