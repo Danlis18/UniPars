@@ -1,6 +1,8 @@
 """Дописи, матеріали, запитання, коментарі, закладки, скарги, файли."""
 from __future__ import annotations
 
+from fastapi.concurrency import run_in_threadpool
+
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
@@ -59,7 +61,9 @@ def delete_post(post_id: str, c: Ctx = Depends(ctx)):
 async def upload(post_id: str, file: UploadFile = File(...), c: Ctx = Depends(ctx)):
     max_mb = get_settings().max_upload_mb
     data = await file.read(max_mb * 1024 * 1024 + 1)
-    return svc(c).add_attachment(post_id, file.filename or "file", file.content_type or "", data, get_storage(), max_mb)
+    # завантаження у Storage й записи в базу — у пулі потоків, щоб великий файл не зупиняв інших користувачів
+    return await run_in_threadpool(svc(c).add_attachment, post_id, file.filename or "file", file.content_type or "", data,
+                                   get_storage(), max_mb)
 
 
 @router.get("/attachments/{attachment_id}/link")

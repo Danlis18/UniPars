@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from fastapi.concurrency import run_in_threadpool
 from fastapi import APIRouter, Body, Depends
 
 from app.api.context import Ctx, ctx
@@ -82,8 +83,8 @@ def delete_source(source_id: str, a: AdminService = Depends(svc)):
 
 @router.post("/news-sources/{source_id}/sync")
 async def sync_source(source_id: str, a: AdminService = Depends(svc)):
-    a._admin()
-    return await news_service.sync_source(a.s, a._source(source_id))
+    await run_in_threadpool(a._admin)
+    return await news_service.sync_source(a.s, await run_in_threadpool(a._source, source_id))
 
 
 @router.post("/announcements", status_code=201)

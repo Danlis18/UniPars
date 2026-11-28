@@ -43,6 +43,18 @@ def _match(row: Row, filters: Iterable[Filter]) -> bool:
     return True
 
 
+import os
+import time
+
+# Лише для тестів навантаження: імітація мережевої затримки Supabase на кожен запит до бази (мс)
+_LATENCY = float(os.environ.get("DEMO_DB_LATENCY_MS", "0") or 0) / 1000
+
+
+def _net() -> None:
+    if _LATENCY:
+        time.sleep(_LATENCY)
+
+
 class DemoStore:
     def __init__(self) -> None:
         self._t: dict[str, list[Row]] = {}
@@ -52,6 +64,7 @@ class DemoStore:
         return self._t.setdefault(name, [])
 
     def select(self, table, filters=(), *, order=None, desc=False, limit=None, offset=0):
+        _net()
         filters = list(filters)
         with self._lock:
             rows = [r for r in self._table(table) if _match(r, filters)]
@@ -65,6 +78,7 @@ class DemoStore:
         return rows[0] if rows else None
 
     def insert(self, table, row):
+        _net()
         row = dict(row)
         if table not in _NO_ID:
             row.setdefault("id", str(uuid.uuid4()))
@@ -83,6 +97,7 @@ class DemoStore:
         return self.insert(table, row)
 
     def update(self, table, eq, values):
+        _net()
         out = []
         with self._lock:
             for r in self._table(table):
@@ -92,6 +107,7 @@ class DemoStore:
         return out
 
     def delete(self, table, eq):
+        _net()
         with self._lock:
             rows = self._table(table)
             keep = [r for r in rows if not all(r.get(k) == v for k, v in eq.items())]
@@ -103,6 +119,7 @@ class DemoStore:
         return len(self.select(table, filters))
 
     def rpc(self, name, params):
+        _net()
         # Функції бази (баланс генерацій) — у demo_billing.py; блокування робить виклик атомарним
         from . import demo_billing
 
