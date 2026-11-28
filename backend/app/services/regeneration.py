@@ -26,6 +26,16 @@ from app.repositories.store import Row, Store
 from app.services.access import Access
 from app.services.billing import BillingService
 
+_slots: asyncio.Semaphore | None = None
+
+
+def _ai_slots() -> asyncio.Semaphore:
+    """Черга генерацій: обмежує одночасні запити до Claude (ліміти Anthropic і контроль витрат під піковим навантаженням)."""
+    global _slots
+    if _slots is None:
+        _slots = asyncio.Semaphore(max(1, get_settings().max_concurrent_regenerations))
+    return _slots
+
 EMPHASIS = {"bold": "жирний", "italic": "курсив", "underline": "підкреслення"}
 HEADING_STYLES = ("bold", "bold-caps", "bold-underline", "bold-italic")
 DENSITY = {"light": "2–3 ключові терміни на розділ", "medium": "4–6 ключових термінів і понять на розділ",
@@ -226,6 +236,9 @@ class RegenerationService:
         background.add_task(self._run, row, sub, storage)  # виконується після відповіді
         return self._out(row)
 
+    async def _save(self, row_id: str, values: Row) -> None:
+        await asyncio.to_thread(self.s.update, "regenerations", {"id": row_id}, values)
+
     async def _run(self, row: Row, sub: Row, storage) -> None:
         try:
             data = await asyncio.to_thread(storage.get, sub["storage_path"])
@@ -242,11 +255,11 @@ class RegenerationService:
             result["figures"] = figures
             if title_page:
                 result["title_page"] = title_page
-            self.s.update("regenerations", {"id": row["id"]}, {"status": "done", "result": result, "completed_at": _now()})
+            await self._save(row["id"], {"status": "done", "result": result, "completed_at": _now()})
         except Exception as e:  # будь-яка помилка → генерацію повертаємо
             msg = str(e)[:300] if isinstance(e, ValueError) else "Не вдалося згенерувати. Генерацію повернуто на баланс."
-            self.s.update("regenerations", {"id": row["id"]}, {"status": "failed", "error": msg, "completed_at": _now()})
-            BillingService(self.s, row["user_id"]).refund(row["charged_from"], row["id"])
+            await self._save(row["id"], {"status": "failed", "error": msg, "completed_at": _now()})
+            await asyncio.to_thread(BillingService(self.s, row["user_id"]).refund, row["charged_from"], row["id"])
 
     async def _generate(self, text: str, options: Row) -> Row:
         from app.integrations.ai.factory import get_provider
@@ -260,8 +273,9 @@ class RegenerationService:
                   f"Дозволені виділення: {emph}. Густота: {DENSITY[st['density']]}. Варіант стилізації №{st['seed']}.\n\n"
                   f"Текст звіту (маркери [[РИС N]] — рисунки з оригіналу):\n<<<\n{text[:MAX_SOURCE_CHARS]}\n>>>")
         out = []
-        async for chunk in provider.stream(SYSTEM, [ChatMessage(role="user", content=prompt)]):
-            out.append(chunk)
+        async with _ai_slots():  # не більше MAX_CONCURRENT_REGENERATIONS запитів до Claude одночасно, решта чекає в черзі
+            async for chunk in provider.stream(SYSTEM, [ChatMessage(role="user", content=prompt)]):
+                out.append(chunk)
         result = _parse_json("".join(out))
         result["engine"] = "ai"
         result["heading_style"] = st["heading"]

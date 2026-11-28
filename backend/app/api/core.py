@@ -1,6 +1,8 @@
 """Конфігурація, профіль, університети, предмети, сповіщення, новини."""
 from __future__ import annotations
 
+from fastapi.concurrency import run_in_threadpool
+
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
@@ -113,7 +115,7 @@ def subjects(q: str | None = None, mine: bool = False, scope: str = Query("all",
 @router.post("/me/avatar")
 async def upload_avatar(file: UploadFile = File(...), c: Ctx = Depends(ctx)):
     data = await file.read(MAX_AVATAR_BYTES + 1)
-    return set_avatar(c.store, c.user.id, data, get_storage())
+    return await run_in_threadpool(set_avatar, c.store, c.user.id, data, get_storage())
 
 
 @router.delete("/me/avatar")
@@ -158,7 +160,7 @@ def read_notifications(c: Ctx = Depends(ctx)):
 
 @router.get("/news")
 async def news(limit: int = Query(8, ge=1, le=30), c: Ctx = Depends(ctx), uni: str = Depends(university_header)):
-    c.access.require_member(uni)
+    await run_in_threadpool(c.access.require_member, uni)
     return await news_service.news_for(c.store, uni, limit)
 
 

@@ -1,6 +1,8 @@
 """Завдання предметів, подання робіт і модерація."""
 from __future__ import annotations
 
+from fastapi.concurrency import run_in_threadpool
+
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
@@ -57,7 +59,8 @@ def delete_task(task_id: str, c: Ctx = Depends(ctx)):
 @router.post("/tasks/{task_id}/files", status_code=201)
 async def add_task_file(task_id: str, file: UploadFile = File(...), c: Ctx = Depends(ctx)):
     data = await _read(file)
-    return svc(c).add_task_file(task_id, file.filename or "file", file.content_type or "", data, get_storage(), get_settings().max_upload_mb)
+    return await run_in_threadpool(svc(c).add_task_file, task_id, file.filename or "file", file.content_type or "", data,
+                                   get_storage(), get_settings().max_upload_mb)
 
 
 @router.delete("/task-files/{file_id}", status_code=204)
@@ -74,8 +77,9 @@ def task_file_link(file_id: str, download: bool = False, c: Ctx = Depends(ctx)):
 async def submit(task_id: str, file: UploadFile = File(...), comment: str = Form(""), anonymous: bool = Form(False),
                  c: Ctx = Depends(ctx)):
     data = await _read(file)
-    return svc(c).submit(task_id, file.filename or "file", file.content_type or "", data, comment, get_storage(),
-                         get_settings().max_upload_mb, anonymous)
+    # завантаження у Storage й записи в базу — у пулі потоків, щоб великий файл не зупиняв інших користувачів
+    return await run_in_threadpool(svc(c).submit, task_id, file.filename or "file", file.content_type or "", data, comment,
+                                   get_storage(), get_settings().max_upload_mb, anonymous)
 
 
 @router.get("/me/submissions")

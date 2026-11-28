@@ -1,6 +1,8 @@
 """Оплата, підписки, баланс і регенерація звітів."""
 from __future__ import annotations
 
+from fastapi.concurrency import run_in_threadpool
+
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
@@ -70,7 +72,8 @@ def history(c: Ctx = Depends(ctx)):
 @router.post("/billing/monobank/webhook")
 async def monobank_webhook(request: Request, x_sign: str = Header(default="")):
     # без авторизації користувача: справжність перевіряється підписом monobank (X-Sign)
-    billing_service.monobank_webhook(get_store(), await request.body(), x_sign)
+    body = await request.body()
+    await run_in_threadpool(billing_service.monobank_webhook, get_store(), body, x_sign)
     return {"ok": True}
 
 
